@@ -149,6 +149,9 @@ class AnalysisEngine:
                 how="full",
                 coalesce=True
             )
+            
+            # Sort by Clave_Mezclado to ensure deterministic order (always has value after join)
+            merged_df = merged_df.sort("Clave_Mezclado")
 
             self.logger.info(f"Full outer join completed: {len(merged_df)} records in merged dataset")
             return merged_df
@@ -228,6 +231,9 @@ class AnalysisEngine:
                 .otherwise(pl.lit("INDETERMINADO"))
                 .alias("Estado")
             ])
+            
+            # Sort by Clave_Mezclado to ensure deterministic order
+            df_with_metrics = df_with_metrics.sort("Clave_Mezclado")
 
             self.logger.info(f"Metric calculations completed: {len(df_with_metrics)} records processed")
             return df_with_metrics
@@ -391,6 +397,9 @@ class AnalysisEngine:
                 'parameters_used': self.parameters
             }
 
+            # Final sort to ensure deterministic output
+            final_df = final_df.sort("Clave_Mezclado")
+            
             self.logger.info("Analysis pipeline completed successfully")
             self.logger.info(f"Final dataset contains {len(final_df)} records")
 

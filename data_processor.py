@@ -288,8 +288,11 @@ class DataProcessor:
                 (pl.col("Servicio_Limpio") != "-")
             )
 
-            # Aggregate by group
-            df = df.group_by(["Cliente_Final", "COD UNID", "Servicio_Limpio"]).agg([
+            # Sort before grouping for deterministic aggregation
+            df = df.sort(["Cliente_Final", "COD UNID", "Servicio_Limpio"])
+
+            # Aggregate by group with maintain_order=True for deterministic output
+            df = df.group_by(["Cliente_Final", "COD UNID", "Servicio_Limpio"], maintain_order=True).agg([
                 pl.len().alias("Personal_Real"),
                 pl.col("TIPO DE COMPAÑÍA").first().alias("Compañía_PA"),
                 pl.col("CLIENTE").first().alias("Nombre_Cliente_PA"),
@@ -393,8 +396,11 @@ class DataProcessor:
                 (pl.col("Servicio_Limpio") != "-")
             )
 
-            # Aggregate by group
-            df = df.group_by(["Cliente_Final", "Unidad_Str", "Servicio_Limpio"]).agg([
+            # Sort before grouping for deterministic aggregation
+            df = df.sort(["Cliente_Final", "Unidad_Str", "Servicio_Limpio"])
+
+            # Aggregate by group with maintain_order=True for deterministic output
+            df = df.group_by(["Cliente_Final", "Unidad_Str", "Servicio_Limpio"], maintain_order=True).agg([
                 pl.col("Q° PER. FACTOR - REQUERIDO").sum().alias("Personal_Estimado"),
                 pl.col("TIPO DE PLANILLA").first().alias("Compañía_SV"),
                 pl.col("Nombre Cliente").first().alias("Nombre_Cliente_SV"),

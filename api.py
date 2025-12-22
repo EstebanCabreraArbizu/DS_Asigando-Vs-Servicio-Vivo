@@ -125,17 +125,22 @@ class APIDataLoader:
                     tmp_file.write(file_content)
                 
                 # Ahora leer el archivo (ya está cerrado)
+                # Usar calamine engine (determinístico y rápido)
                 df = pl.read_excel(
                     tmp_path,
                     sheet_name=sheet_name,
-                    engine='xlsx2csv',
-                    read_options={
-                        "skip_rows": header_row,
-                        "null_values": ["--------", "-", "", "#N/A"],
-                        "infer_schema_length": 10000,
-                    },
+                    engine='calamine',
                     schema_overrides=schema,
+                    infer_schema_length=10000,
                 )
+                
+                # Skip rows manualmente si es necesario
+                if header_row > 0:
+                    df = df.slice(header_row)
+                
+                # Agregar índice de fila para mantener orden determinístico
+                df = df.with_row_index("_row_idx")
+                
                 self.logger.info(f"Cargados {len(df)} registros exitosamente")
                 return df
             finally:
@@ -157,17 +162,25 @@ class APIDataLoader:
 
     def load_personal_asignado(self, file_content: bytes) -> pl.DataFrame:
         """Carga el dataset de Personal Asignado desde bytes."""
-        return self.load_from_bytes(
+        df = self.load_from_bytes(
             file_content,
             SHEET_NAMES["personal_asignado"],
             HEADER_ROWS["personal_asignado"],
             EXCEL_SCHEMAS["personal_asignado"]
         )
+        # Ordenar por índice de fila para garantizar determinismo
+        return df.sort("_row_idx")
 
     def load_servicio_vivo(self, file_content: bytes) -> pl.DataFrame:
         """Carga el dataset de Servicio Vivo desde bytes."""
-        return self.load_from_bytes(
+        df = self.load_from_bytes(
             file_content,
+            SHEET_NAMES["servicio_vivo"],
+            HEADER_ROWS["servicio_vivo"],
+            EXCEL_SCHEMAS["servicio_vivo"]
+        )
+        # Ordenar por índice de fila para garantizar determinismo
+        return df.sort("_row_idx")
             SHEET_NAMES["servicio_vivo"],
             HEADER_ROWS["servicio_vivo"],
             EXCEL_SCHEMAS["servicio_vivo"]
