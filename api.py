@@ -15,6 +15,7 @@ Endpoints:
 
 import io
 import logging
+import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,10 @@ import polars as pl
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
 
 # Importar módulos existentes
 from data_processor import DataProcessor, DataProcessorError
@@ -62,12 +67,18 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# Configurar CORS para permitir acceso desde cualquier origen (ajustar en producción)
+# Configurar CORS con orígenes desde variable de entorno
+allowed_origins = os.getenv("ALLOW_ORIGINS", "*")
+if allowed_origins != "*":
+    allowed_origins = [origin.strip() for origin in allowed_origins.split(",")]
+else:
+    allowed_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
 
@@ -102,15 +113,18 @@ class APIDataLoader:
         Returns:
             DataFrame de Polars con los datos cargados
         """
+        tmp_path = None
         try:
             self.logger.info(f"Cargando archivo Excel, hoja: {sheet_name}")
             
-            # Crear archivo temporal para procesar
-            with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp_file:
-                tmp_file.write(file_content)
-                tmp_path = tmp_file.name
-            
+            # Crear archivo temporal para procesar (delete=False para Windows)
+            tmp_fd, tmp_path = tempfile.mkstemp(suffix='.xlsx')
             try:
+                # Escribir contenido y cerrar el file descriptor
+                with os.fdopen(tmp_fd, 'wb') as tmp_file:
+                    tmp_file.write(file_content)
+                
+                # Ahora leer el archivo (ya está cerrado)
                 df = pl.read_excel(
                     tmp_path,
                     sheet_name=sheet_name,
@@ -126,8 +140,14 @@ class APIDataLoader:
                 return df
             finally:
                 # Limpiar archivo temporal
-                Path(tmp_path).unlink(missing_ok=True)
+                if tmp_path and Path(tmp_path).exists():
+                    try:
+                        Path(tmp_path).unlink()
+                    except Exception:
+                        pass  # Ignorar errores de limpieza en Windows
                 
+        except HTTPException:
+            raise
         except Exception as e:
             self.logger.error(f"Error cargando archivo Excel: {str(e)}")
             raise HTTPException(
@@ -271,6 +291,9 @@ async def analyze_files(
     """
     logger.info("Iniciando análisis de archivos")
     
+    # Obtener límite de tamaño desde variable de entorno
+    max_upload_size = int(os.getenv("MAX_UPLOAD_SIZE", 50_000_000))  # 50 MB por defecto
+    
     # Validar tipos de archivo
     for file, name in [(personal_asignado, "personal_asignado"), (servicio_vivo, "servicio_vivo")]:
         if not file.filename.endswith(('.xlsx', '.xls')):
@@ -284,8 +307,22 @@ async def analyze_files(
         logger.info(f"Leyendo archivo Personal Asignado: {personal_asignado.filename}")
         pa_content = await personal_asignado.read()
         
+        # Validar tamaño del archivo PA
+        if len(pa_content) > max_upload_size:
+            raise HTTPException(
+                status_code=413,
+                detail=f"El archivo Personal Asignado excede el tamaño máximo permitido ({max_upload_size / 1_000_000:.1f} MB)"
+            )
+        
         logger.info(f"Leyendo archivo Servicio Vivo: {servicio_vivo.filename}")
         sv_content = await servicio_vivo.read()
+        
+        # Validar tamaño del archivo SV
+        if len(sv_content) > max_upload_size:
+            raise HTTPException(
+                status_code=413,
+                detail=f"El archivo Servicio Vivo excede el tamaño máximo permitido ({max_upload_size / 1_000_000:.1f} MB)"
+            )
         
         # Cargar datasets
         logger.info("Cargando datasets...")
@@ -394,4 +431,4 @@ async def get_configuration() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
