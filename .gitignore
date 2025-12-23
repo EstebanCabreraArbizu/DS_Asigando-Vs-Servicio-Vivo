@@ -1,6 +1,15 @@
-venv/*
+venv/
 __pycache__/
-*anteriores/
+data/
+core/__pycache__/
+server/__pycache__/
+server/.env
+server/db.sqlite3
+server/staticfiles/
 *.xlsx
 *.csv
 *.zip
+*.png
+*.log
+.env
+tests/test_determinism_result.txt
