@@ -20,10 +20,10 @@ SHEET_NAMES: Dict[str, str] = {
     "servicio_vivo": "DATA"
 }
 
-# Header row indices (0-based)
+# Header row indices (0-based, indica la fila que contiene los encabezados)
 HEADER_ROWS: Dict[str, int] = {
-    "personal_asignado": 2,
-    "servicio_vivo": 2
+    "personal_asignado": 1,  # Fila 1 tiene encabezados (ITEM, TIPO DE COMPAÑÍA, etc.)
+    "servicio_vivo": 2       # Fila 2 tiene encabezados (ITEM, TIPO DE PLANILLA, etc.)
 }
 
 # Excel schemas (column types as strings for polars compatibility)

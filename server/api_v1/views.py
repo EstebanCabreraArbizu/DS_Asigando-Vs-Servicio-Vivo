@@ -1,11 +1,6 @@
 from django.http import JsonResponse
-from django.urls import path
 
 
 def health(_request):
+    """Health check endpoint - returns {"status": "ok"}"""
     return JsonResponse({"status": "ok"})
-
-
-urlpatterns = [
-    path("", health),
-]

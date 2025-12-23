@@ -12,27 +12,74 @@ from django.core.files.base import ContentFile
 from jobs.models import AnalysisJob, JobStatus, Artifact, ArtifactKind
 
 # Pipeline (root del repo) — se habilita por sys.path en settings/manage.py
-from data_processor import DataProcessor
-from analysis_engine import AnalysisEngine
-from excel_exporter import ExcelExporter
-from config import SHEET_NAMES, HEADER_ROWS, EXCEL_SCHEMAS
+from core.data_processor import DataProcessor
+from core.analysis_engine import AnalysisEngine
+from core.excel_exporter import ExcelExporter
+from core.config import SHEET_NAMES, HEADER_ROWS, EXCEL_SCHEMAS
+
+
+def _make_unique_columns(header_values):
+    """Convierte nombres de columna a strings únicos, manejando duplicados y valores vacíos."""
+    seen = {}
+    result = []
+    for i, v in enumerate(header_values):
+        name = str(v).strip() if v is not None else ""
+        # Si está vacío o es "(en blanco)", generar nombre único
+        if not name or name == "(en blanco)" or name.lower() == "none":
+            name = f"_col_{i}"
+        
+        # Manejar duplicados
+        if name in seen:
+            seen[name] += 1
+            name = f"{name}_{seen[name]}"
+        else:
+            seen[name] = 0
+        
+        result.append(name)
+    return result
 
 
 def _read_excel_bytes_to_df(content: bytes, sheet_name: str, header_row: int, schema: dict) -> pl.DataFrame:
+    """Lee un Excel desde bytes, saltando las filas de encabezado indicadas."""
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
     try:
         with os.fdopen(tmp_fd, "wb") as f:
             f.write(content)
 
+        # Leer sin encabezados para poder manejar filas de título
         df = pl.read_excel(
             tmp_path,
             sheet_name=sheet_name,
             engine="calamine",
-            schema_overrides=schema,
+            has_header=False,
             infer_schema_length=10000,
         )
+        
         if header_row > 0:
-            df = df.slice(header_row)
+            # La fila header_row contiene los nombres de columnas reales
+            # Extraer nombres de columna de esa fila
+            header_values = df.row(header_row)
+            new_columns = _make_unique_columns(header_values)
+            
+            # Renombrar columnas y saltar filas hasta los datos
+            df = df.slice(header_row + 1)  # Datos comienzan después del encabezado
+            df.columns = new_columns
+        else:
+            # Primera fila es el encabezado, ya está bien
+            header_values = df.row(0)
+            new_columns = _make_unique_columns(header_values)
+            df = df.slice(1)
+            df.columns = new_columns
+        
+        # Aplicar schema si se especificó
+        if schema:
+            for col, dtype in schema.items():
+                if col in df.columns:
+                    try:
+                        df = df.with_columns(pl.col(col).cast(dtype))
+                    except Exception:
+                        pass  # Ignorar errores de cast
+        
         return df
     finally:
         try:

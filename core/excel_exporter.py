@@ -12,8 +12,12 @@ import logging
 from typing import Dict, Any, Optional
 from pathlib import Path
 from datetime import datetime
-from config import FILE_PATHS, OUTPUT_SHEETS
 import pyarrow as pa
+
+try:
+    from .config import FILE_PATHS, OUTPUT_SHEETS
+except ImportError:
+    from config import FILE_PATHS, OUTPUT_SHEETS
 
 class ExcelExporterError(Exception):
     """

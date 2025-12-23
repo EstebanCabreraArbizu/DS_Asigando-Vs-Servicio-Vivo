@@ -11,5 +11,8 @@ server/staticfiles/
 *.zip
 *.png
 *.log
+*.parquet
 .env
+*migrations/
+*.json
 tests/test_determinism_result.txt

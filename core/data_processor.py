@@ -8,7 +8,11 @@ for Personal Asignado and Servicio Vivo datasets using vectorized Polars operati
 import polars as pl
 import logging
 from typing import Optional, Dict, Any
-from config import PARAMETERS
+
+try:
+    from .config import PARAMETERS
+except ImportError:
+    from config import PARAMETERS
 
 
 class DataProcessorError(Exception):

@@ -64,16 +64,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "pavssv_server.wsgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB", "pavssv"),
-        "USER": os.getenv("POSTGRES_USER", "pavssv"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "pavssv"),
-        "HOST": os.getenv("POSTGRES_HOST", "db"),
-        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+# Base de datos: PostgreSQL en Docker, SQLite en desarrollo local
+if os.getenv("USE_SQLITE", "0") == "1" or os.getenv("POSTGRES_HOST", "db") == "db":
+    # Desarrollo local con SQLite
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
+else:
+    # Producción/Docker con PostgreSQL
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB", "pavssv"),
+            "USER": os.getenv("POSTGRES_USER", "pavssv"),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD", "pavssv"),
+            "HOST": os.getenv("POSTGRES_HOST", "db"),
+            "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = []
 
@@ -98,3 +109,6 @@ REST_FRAMEWORK = {
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
 CELERY_TASK_TRACK_STARTED = True
+# En desarrollo (DEBUG=True), ejecutar tasks sincrónicamente sin Redis
+CELERY_TASK_ALWAYS_EAGER = DEBUG
+CELERY_TASK_EAGER_PROPAGATES = DEBUG

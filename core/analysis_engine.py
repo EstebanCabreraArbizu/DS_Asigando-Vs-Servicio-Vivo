@@ -10,7 +10,11 @@ import polars as pl
 import logging
 import datetime as dt
 from typing import Optional, Dict, Any, Tuple
-from config import PARAMETERS
+
+try:
+    from .config import PARAMETERS
+except ImportError:
+    from config import PARAMETERS
 
 
 class AnalysisEngineError(Exception):
