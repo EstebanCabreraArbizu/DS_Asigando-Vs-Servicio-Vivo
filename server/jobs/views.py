@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from jobs.models import AnalysisJob, ArtifactKind
+from jobs.models import AnalysisJob, ArtifactKind, JobStatus
 from jobs.serializers import AnalysisJobCreateSerializer, AnalysisJobStatusSerializer
 from jobs.tasks import run_analysis_job
 from tenants.models import Tenant
@@ -73,5 +73,53 @@ class JobDownloadExcelView(APIView):
         artifact = job.artifacts.filter(kind=ArtifactKind.EXCEL).order_by("-created_at").first()
         if not artifact:
             return Response({"detail": "Excel aún no disponible"}, status=status.HTTP_404_NOT_FOUND)
-        return FileResponse(artifact.file.open("rb"), as_attachment=True, filename=artifact.file.name.split("/")[-1])
+        
+        # Nombre descriptivo del archivo
+        period_str = job.period_month.strftime("%Y-%m") if job.period_month else job.created_at.strftime("%Y%m%d")
+        filename = f"PA_vs_SV_{period_str}.xlsx"
+        
+        response = FileResponse(
+            artifact.file.open("rb"), 
+            as_attachment=True, 
+            filename=filename,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        return response
+
+
+class JobLatestDownloadView(APIView):
+    """Descarga el Excel del último job exitoso."""
+    
+    def get(self, request):
+        tenant_slug = request.GET.get("tenant", "default")
+        
+        try:
+            tenant = Tenant.objects.get(slug=tenant_slug)
+        except Tenant.DoesNotExist:
+            return Response({"detail": "Tenant no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Buscar último job exitoso
+        job = AnalysisJob.objects.filter(
+            tenant=tenant,
+            status=JobStatus.SUCCEEDED
+        ).order_by("-created_at").first()
+        
+        if not job:
+            return Response({"detail": "No hay jobs exitosos disponibles"}, status=status.HTTP_404_NOT_FOUND)
+        
+        artifact = job.artifacts.filter(kind=ArtifactKind.EXCEL).first()
+        if not artifact:
+            return Response({"detail": "Excel no disponible para este job"}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Nombre descriptivo del archivo
+        period_str = job.period_month.strftime("%Y-%m") if job.period_month else job.created_at.strftime("%Y%m%d")
+        filename = f"PA_vs_SV_{period_str}.xlsx"
+        
+        response = FileResponse(
+            artifact.file.open("rb"), 
+            as_attachment=True, 
+            filename=filename,
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        return response
 

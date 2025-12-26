@@ -1,0 +1,467 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subir Archivos - PA vs SV</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .dropzone {
+            transition: all 0.3s ease;
+        }
+        .dropzone.dragover {
+            border-color: #3B82F6;
+            background-color: #EFF6FF;
+            transform: scale(1.02);
+        }
+        .dropzone.has-file {
+            border-color: #10B981;
+            background-color: #ECFDF5;
+        }
+        .dropzone.error {
+            border-color: #EF4444;
+            background-color: #FEF2F2;
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse-slow {
+            animation: pulse 2s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-lg">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold">📤 Subir Archivos Excel</h1>
+                    <p class="text-blue-100 text-sm">Arrastra o selecciona tus archivos de Personal Asignado y Servicio Vivo</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <a href="/dashboard/" class="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition">
+                        📊 Ver Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-8">
+        <!-- Upload Section -->
+        <section class="bg-white rounded-xl shadow-md p-8 mb-8">
+            <h2 class="text-xl font-bold text-gray-800 mb-6">Nuevo Análisis</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Personal Asignado Dropzone -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        📋 Personal Asignado (PA)
+                    </label>
+                    <div id="dropzone-pa" class="dropzone border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400">
+                        <input type="file" id="file-pa" accept=".xlsx,.xls,.csv" class="hidden">
+                        <div id="dropzone-pa-content">
+                            <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <p class="text-gray-600">Arrastra aquí o <span class="text-blue-600 underline">selecciona</span></p>
+                            <p class="text-gray-400 text-sm mt-1">Excel de Personal Asignado (.xlsx)</p>
+                        </div>
+                        <div id="dropzone-pa-file" class="hidden">
+                            <svg class="mx-auto h-10 w-10 text-green-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <p class="text-green-700 font-medium" id="file-pa-name"></p>
+                            <p class="text-gray-500 text-sm" id="file-pa-size"></p>
+                            <button type="button" onclick="clearFile('pa')" class="mt-2 text-red-500 text-sm hover:underline">✕ Quitar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Servicio Vivo Dropzone -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        📊 Servicio Vivo (SV)
+                    </label>
+                    <div id="dropzone-sv" class="dropzone border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400">
+                        <input type="file" id="file-sv" accept=".xlsx,.xls,.csv" class="hidden">
+                        <div id="dropzone-sv-content">
+                            <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <p class="text-gray-600">Arrastra aquí o <span class="text-blue-600 underline">selecciona</span></p>
+                            <p class="text-gray-400 text-sm mt-1">Excel de Servicio Vivo (.xlsx)</p>
+                        </div>
+                        <div id="dropzone-sv-file" class="hidden">
+                            <svg class="mx-auto h-10 w-10 text-green-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <p class="text-green-700 font-medium" id="file-sv-name"></p>
+                            <p class="text-gray-500 text-sm" id="file-sv-size"></p>
+                            <button type="button" onclick="clearFile('sv')" class="mt-2 text-red-500 text-sm hover:underline">✕ Quitar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Period Month -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    📅 Periodo (opcional)
+                </label>
+                <input type="month" id="period-month" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+
+            <!-- Submit Button -->
+            <div class="flex items-center gap-4">
+                <button id="submit-btn" disabled class="bg-blue-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                    <svg id="submit-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <span id="submit-text">Iniciar Análisis</span>
+                </button>
+                <span id="status-text" class="text-gray-500"></span>
+            </div>
+
+            <!-- Progress Section -->
+            <div id="progress-section" class="hidden mt-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-700">Procesando...</span>
+                    <span id="progress-percent" class="text-sm text-gray-500">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div id="progress-bar" class="progress-bar bg-blue-600 h-3 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="progress-status" class="text-sm text-gray-500 mt-2">Subiendo archivos...</p>
+            </div>
+
+            <!-- Result Section -->
+            <div id="result-section" class="hidden mt-6 p-4 rounded-lg">
+                <div id="result-success" class="hidden bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-green-800">¡Análisis completado!</p>
+                            <p class="text-sm text-green-600">El Excel comparativo está listo para descargar.</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-3">
+                        <a id="download-link" href="#" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition inline-flex items-center gap-2">
+                            📥 Descargar Excel
+                        </a>
+                        <a href="/dashboard/" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2">
+                            📊 Ver en Dashboard
+                        </a>
+                        <button onclick="resetForm()" class="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition">
+                            🔄 Nuevo Análisis
+                        </button>
+                    </div>
+                </div>
+                <div id="result-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-red-800">Error en el análisis</p>
+                            <p id="error-message" class="text-sm text-red-600"></p>
+                        </div>
+                    </div>
+                    <button onclick="resetForm()" class="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
+                        Intentar de nuevo
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Recent Jobs History -->
+        <section class="bg-white rounded-xl shadow-md p-8">
+            <h2 class="text-xl font-bold text-gray-800 mb-6">📜 Historial de Análisis</h2>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Periodo</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobs-table" class="bg-white divide-y divide-gray-200">
+                        {% for job in recent_jobs %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ job.created_at|date:"d/m/Y H:i" }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {% if job.period_month %}{{ job.period_month|date:"F Y" }}{% else %}-{% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if job.status == 'succeeded' %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">✓ Completado</span>
+                                {% elif job.status == 'failed' %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">✕ Error</span>
+                                {% elif job.status == 'running' %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 animate-pulse-slow">⏳ Procesando</span>
+                                {% else %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">⏱ En cola</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                {% if job.status == 'succeeded' %}
+                                <a href="/api/v1/jobs/{{ job.id }}/excel/" class="text-blue-600 hover:underline">📥 Descargar</a>
+                                {% elif job.status == 'failed' %}
+                                <span class="text-red-500 text-xs" title="{{ job.error_message }}">Ver error</span>
+                                {% else %}
+                                <span class="text-gray-400">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+                                No hay análisis previos. ¡Sube tus archivos para comenzar!
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Quick Download Latest -->
+            {% if recent_jobs %}
+            <div class="mt-4 pt-4 border-t">
+                <a href="/api/v1/jobs/latest/download/?tenant=default" class="inline-flex items-center gap-2 text-blue-600 hover:underline font-medium">
+                    ⚡ Descargar último Excel exitoso
+                </a>
+            </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <script>
+        // Estado
+        let filePA = null;
+        let fileSV = null;
+        let currentJobId = null;
+        let pollInterval = null;
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            setupDropzone('pa');
+            setupDropzone('sv');
+        });
+
+        // Configurar dropzone
+        function setupDropzone(type) {
+            const dropzone = document.getElementById(`dropzone-${type}`);
+            const fileInput = document.getElementById(`file-${type}`);
+
+            // Click para seleccionar
+            dropzone.addEventListener('click', () => fileInput.click());
+
+            // Cambio de archivo
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files[0]) {
+                    setFile(type, e.target.files[0]);
+                }
+            });
+
+            // Drag events
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('dragover');
+            });
+
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('dragover');
+            });
+
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('dragover');
+                if (e.dataTransfer.files[0]) {
+                    setFile(type, e.dataTransfer.files[0]);
+                }
+            });
+        }
+
+        // Establecer archivo
+        function setFile(type, file) {
+            const dropzone = document.getElementById(`dropzone-${type}`);
+            const contentDiv = document.getElementById(`dropzone-${type}-content`);
+            const fileDiv = document.getElementById(`dropzone-${type}-file`);
+            const nameEl = document.getElementById(`file-${type}-name`);
+            const sizeEl = document.getElementById(`file-${type}-size`);
+
+            if (type === 'pa') filePA = file;
+            else fileSV = file;
+
+            dropzone.classList.add('has-file');
+            contentDiv.classList.add('hidden');
+            fileDiv.classList.remove('hidden');
+            nameEl.textContent = file.name;
+            sizeEl.textContent = formatFileSize(file.size);
+
+            updateSubmitButton();
+        }
+
+        // Limpiar archivo
+        function clearFile(type) {
+            const dropzone = document.getElementById(`dropzone-${type}`);
+            const contentDiv = document.getElementById(`dropzone-${type}-content`);
+            const fileDiv = document.getElementById(`dropzone-${type}-file`);
+            const fileInput = document.getElementById(`file-${type}`);
+
+            if (type === 'pa') filePA = null;
+            else fileSV = null;
+
+            dropzone.classList.remove('has-file');
+            contentDiv.classList.remove('hidden');
+            fileDiv.classList.add('hidden');
+            fileInput.value = '';
+
+            updateSubmitButton();
+        }
+
+        // Actualizar botón submit
+        function updateSubmitButton() {
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = !filePA || !fileSV;
+        }
+
+        // Formatear tamaño
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // Submit handler
+        document.getElementById('submit-btn').addEventListener('click', async () => {
+            if (!filePA || !fileSV) return;
+
+            const btn = document.getElementById('submit-btn');
+            const progressSection = document.getElementById('progress-section');
+            const resultSection = document.getElementById('result-section');
+
+            btn.disabled = true;
+            document.getElementById('submit-text').textContent = 'Procesando...';
+            progressSection.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+
+            // Preparar FormData
+            const formData = new FormData();
+            formData.append('input_personal_asignado', filePA);
+            formData.append('input_servicio_vivo', fileSV);
+            
+            const periodMonth = document.getElementById('period-month').value;
+            if (periodMonth) {
+                formData.append('period_month', periodMonth);
+            }
+
+            try {
+                // Enviar archivos
+                updateProgress(10, 'Subiendo archivos...');
+                
+                const response = await fetch('/api/v1/jobs/', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Error al crear el job');
+                }
+
+                const data = await response.json();
+                currentJobId = data.job_id;
+                
+                updateProgress(30, 'Archivos subidos. Procesando análisis...');
+
+                // Polling del estado
+                pollJobStatus();
+
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        // Poll job status
+        function pollJobStatus() {
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/v1/jobs/${currentJobId}/status/`);
+                    const data = await response.json();
+
+                    if (data.status === 'succeeded') {
+                        clearInterval(pollInterval);
+                        updateProgress(100, '¡Completado!');
+                        showSuccess();
+                    } else if (data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        showError(data.error_message || 'Error desconocido');
+                    } else if (data.status === 'running') {
+                        updateProgress(60, 'Ejecutando análisis PA vs SV...');
+                    } else {
+                        updateProgress(40, 'En cola de procesamiento...');
+                    }
+                } catch (error) {
+                    clearInterval(pollInterval);
+                    showError('Error al verificar estado: ' + error.message);
+                }
+            }, 1500);
+        }
+
+        // Actualizar progreso
+        function updateProgress(percent, status) {
+            document.getElementById('progress-bar').style.width = percent + '%';
+            document.getElementById('progress-percent').textContent = percent + '%';
+            document.getElementById('progress-status').textContent = status;
+        }
+
+        // Mostrar éxito
+        function showSuccess() {
+            document.getElementById('progress-section').classList.add('hidden');
+            document.getElementById('result-section').classList.remove('hidden');
+            document.getElementById('result-success').classList.remove('hidden');
+            document.getElementById('result-error').classList.add('hidden');
+            document.getElementById('download-link').href = `/api/v1/jobs/${currentJobId}/excel/`;
+            document.getElementById('submit-text').textContent = 'Iniciar Análisis';
+        }
+
+        // Mostrar error
+        function showError(message) {
+            document.getElementById('progress-section').classList.add('hidden');
+            document.getElementById('result-section').classList.remove('hidden');
+            document.getElementById('result-success').classList.add('hidden');
+            document.getElementById('result-error').classList.remove('hidden');
+            document.getElementById('error-message').textContent = message;
+            document.getElementById('submit-text').textContent = 'Iniciar Análisis';
+            document.getElementById('submit-btn').disabled = false;
+        }
+
+        // Reset form
+        function resetForm() {
+            clearFile('pa');
+            clearFile('sv');
+            document.getElementById('period-month').value = '';
+            document.getElementById('progress-section').classList.add('hidden');
+            document.getElementById('result-section').classList.add('hidden');
+            document.getElementById('submit-btn').disabled = true;
+            document.getElementById('submit-text').textContent = 'Iniciar Análisis';
+            currentJobId = null;
+            if (pollInterval) clearInterval(pollInterval);
+        }
+    </script>
+</body>
+</html>

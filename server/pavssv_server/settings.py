@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "tenants",
     "jobs",
     "api_v1",
+    "dashboard",
 ]
 
 MIDDLEWARE = [
