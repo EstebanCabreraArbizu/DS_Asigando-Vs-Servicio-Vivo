@@ -576,6 +576,19 @@ class DetailsAPIView(View):
         try:
             df = pl.read_parquet(artifact.file.path)
             
+            # Agregar filtros globales desde request
+            global_filters = {
+                "macrozona": request.GET.get("macrozona", ""),
+                "zona": request.GET.get("zona", ""),
+                "compania": request.GET.get("compania", ""),
+                "grupo": request.GET.get("grupo", ""),
+                "sector": request.GET.get("sector", ""),
+                "gerente": request.GET.get("gerente", ""),
+            }
+            
+            # Aplicar filtros globales
+            df = self._apply_global_filters(df, global_filters)
+            
             if search:
                 search_lower = search.lower()
                 df = df.filter(
@@ -610,3 +623,544 @@ class DetailsAPIView(View):
             
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
+    
+    def _apply_global_filters(self, df, filters):
+        """Aplica filtros globales al DataFrame."""
+        import polars as pl
+        
+        if filters.get("macrozona"):
+            df = df.filter(pl.col("Macrozona_SV") == filters["macrozona"])
+        
+        if filters.get("zona"):
+            zona_filter = pl.lit(False)
+            if "Zona_SV" in df.columns:
+                zona_filter = zona_filter | (pl.col("Zona_SV") == filters["zona"])
+            if "Zona_PA" in df.columns:
+                zona_filter = zona_filter | (pl.col("Zona_PA") == filters["zona"])
+            df = df.filter(zona_filter)
+        
+        if filters.get("compania"):
+            compania_filter = pl.lit(False)
+            if "Compañía_SV" in df.columns:
+                compania_filter = compania_filter | (pl.col("Compañía_SV") == filters["compania"])
+            if "Compañía_PA" in df.columns:
+                compania_filter = compania_filter | (pl.col("Compañía_PA") == filters["compania"])
+            df = df.filter(compania_filter)
+        
+        if filters.get("grupo"):
+            grupo_filter = pl.lit(False)
+            if "Nombre_Grupo_SV" in df.columns:
+                grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_SV") == filters["grupo"])
+            if "Nombre_Grupo_PA" in df.columns:
+                grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_PA") == filters["grupo"])
+            df = df.filter(grupo_filter)
+        
+        if filters.get("sector"):
+            sector_filter = pl.lit(False)
+            if "Sector_SV" in df.columns:
+                sector_filter = sector_filter | (pl.col("Sector_SV") == filters["sector"])
+            if "Sector_PA" in df.columns:
+                sector_filter = sector_filter | (pl.col("Sector_PA") == filters["sector"])
+            df = df.filter(sector_filter)
+        
+        if filters.get("gerente"):
+            gerente_filter = pl.lit(False)
+            if "Gerencia_SV" in df.columns:
+                gerente_filter = gerente_filter | (pl.col("Gerencia_SV") == filters["gerente"])
+            if "Gerencia_PA" in df.columns:
+                gerente_filter = gerente_filter | (pl.col("Gerencia_PA") == filters["gerente"])
+            df = df.filter(gerente_filter)
+        
+        return df
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ClientsAPIView(View):
+    """API para obtener datos de clientes con paginación."""
+    
+    def get(self, request):
+        tenant_slug = request.GET.get("tenant", "default")
+        period = request.GET.get("period")
+        page = int(request.GET.get("page", 1))
+        per_page = int(request.GET.get("per_page", 25))
+        search = request.GET.get("search", "")
+        sort_by = request.GET.get("sort_by", "pa")
+        sort_order = request.GET.get("sort_order", "desc")
+        
+        try:
+            tenant = Tenant.objects.get(slug=tenant_slug)
+        except Tenant.DoesNotExist:
+            return JsonResponse({"error": "Tenant no encontrado"}, status=404)
+        
+        filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
+        if period:
+            from datetime import datetime
+            period_date = datetime.strptime(f"{period}-01", "%Y-%m-%d").date()
+            filters["period_month"] = period_date
+        
+        job = AnalysisJob.objects.filter(**filters).order_by("-created_at").first()
+        
+        if not job:
+            return JsonResponse({
+                "data": [],
+                "total": 0,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": 0
+            })
+        
+        import polars as pl
+        from jobs.models import Artifact, ArtifactKind
+        
+        artifact = job.artifacts.filter(kind=ArtifactKind.PARQUET).first()
+        if not artifact:
+            return JsonResponse({"error": "No hay datos de análisis"}, status=404)
+        
+        try:
+            df = pl.read_parquet(artifact.file.path)
+            
+            # Agregar filtros globales desde request
+            global_filters = {
+                "macrozona": request.GET.get("macrozona", ""),
+                "zona": request.GET.get("zona", ""),
+                "compania": request.GET.get("compania", ""),
+                "grupo": request.GET.get("grupo", ""),
+                "sector": request.GET.get("sector", ""),
+                "gerente": request.GET.get("gerente", ""),
+            }
+            
+            # Aplicar filtros globales
+            df = self._apply_global_filters(df, global_filters)
+            
+            # Agrupar por cliente
+            df_cliente = df.with_columns(
+                pl.coalesce([
+                    pl.col("Nombre_Cliente_SV") if "Nombre_Cliente_SV" in df.columns else pl.lit(None),
+                    pl.col("Nombre_Cliente_PA") if "Nombre_Cliente_PA" in df.columns else pl.lit(None),
+                    pl.col("Cliente_Final")
+                ]).alias("Nombre_Cliente_Display")
+            )
+            
+            by_cliente = df_cliente.group_by("Cliente_Final").agg([
+                pl.col("Personal_Real").sum().alias("pa"),
+                pl.col("Personal_Estimado").sum().alias("sv"),
+                (pl.col("Personal_Real").sum() - pl.col("Personal_Estimado").sum()).alias("diferencia"),
+                pl.col("Nombre_Cliente_Display").first().alias("nombre"),
+                pl.len().alias("servicios")
+            ])
+            
+            # Aplicar búsqueda
+            if search:
+                search_lower = search.lower()
+                by_cliente = by_cliente.filter(
+                    pl.col("Cliente_Final").cast(pl.String).str.to_lowercase().str.contains(search_lower) |
+                    pl.col("nombre").cast(pl.String).str.to_lowercase().str.contains(search_lower)
+                )
+            
+            total = len(by_cliente)
+            
+            # Aplicar ordenamiento
+            if sort_by == "pa":
+                by_cliente = by_cliente.sort("pa", descending=(sort_order == "desc"))
+            elif sort_by == "sv":
+                by_cliente = by_cliente.sort("sv", descending=(sort_order == "desc"))
+            elif sort_by == "diferencia":
+                by_cliente = by_cliente.sort("diferencia", descending=(sort_order == "desc"))
+            elif sort_by == "nombre":
+                by_cliente = by_cliente.sort("nombre", descending=(sort_order == "desc"))
+            else:
+                by_cliente = by_cliente.sort("pa", descending=True)
+            
+            # Paginación
+            offset = (page - 1) * per_page
+            df_page = by_cliente.slice(offset, per_page)
+            
+            data = df_page.to_dicts()
+            
+            return JsonResponse({
+                "data": data,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (total + per_page - 1) // per_page
+            })
+            
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    
+    def _apply_global_filters(self, df, filters):
+        """Aplica filtros globales al DataFrame."""
+        import polars as pl
+        
+        if filters.get("macrozona"):
+            df = df.filter(pl.col("Macrozona_SV") == filters["macrozona"])
+        
+        if filters.get("zona"):
+            zona_filter = pl.lit(False)
+            if "Zona_SV" in df.columns:
+                zona_filter = zona_filter | (pl.col("Zona_SV") == filters["zona"])
+            if "Zona_PA" in df.columns:
+                zona_filter = zona_filter | (pl.col("Zona_PA") == filters["zona"])
+            df = df.filter(zona_filter)
+        
+        if filters.get("compania"):
+            compania_filter = pl.lit(False)
+            if "Compañía_SV" in df.columns:
+                compania_filter = compania_filter | (pl.col("Compañía_SV") == filters["compania"])
+            if "Compañía_PA" in df.columns:
+                compania_filter = compania_filter | (pl.col("Compañía_PA") == filters["compania"])
+            df = df.filter(compania_filter)
+        
+        if filters.get("grupo"):
+            grupo_filter = pl.lit(False)
+            if "Nombre_Grupo_SV" in df.columns:
+                grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_SV") == filters["grupo"])
+            if "Nombre_Grupo_PA" in df.columns:
+                grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_PA") == filters["grupo"])
+            df = df.filter(grupo_filter)
+        
+        if filters.get("sector"):
+            sector_filter = pl.lit(False)
+            if "Sector_SV" in df.columns:
+                sector_filter = sector_filter | (pl.col("Sector_SV") == filters["sector"])
+            if "Sector_PA" in df.columns:
+                sector_filter = sector_filter | (pl.col("Sector_PA") == filters["sector"])
+            df = df.filter(sector_filter)
+        
+        if filters.get("gerente"):
+            gerente_filter = pl.lit(False)
+            if "Gerencia_SV" in df.columns:
+                gerente_filter = gerente_filter | (pl.col("Gerencia_SV") == filters["gerente"])
+            if "Gerencia_PA" in df.columns:
+                gerente_filter = gerente_filter | (pl.col("Gerencia_PA") == filters["gerente"])
+            df = df.filter(gerente_filter)
+        
+        return df
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class UnitsAPIView(View):
+    """API para obtener datos de unidades con paginación."""
+    
+    def get(self, request):
+        tenant_slug = request.GET.get("tenant", "default")
+        period = request.GET.get("period")
+        page = int(request.GET.get("page", 1))
+        per_page = int(request.GET.get("per_page", 25))
+        search = request.GET.get("search", "")
+        sort_by = request.GET.get("sort_by", "pa")
+        sort_order = request.GET.get("sort_order", "desc")
+        
+        try:
+            tenant = Tenant.objects.get(slug=tenant_slug)
+        except Tenant.DoesNotExist:
+            return JsonResponse({"error": "Tenant no encontrado"}, status=404)
+        
+        filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
+        if period:
+            from datetime import datetime
+            period_date = datetime.strptime(f"{period}-01", "%Y-%m-%d").date()
+            filters["period_month"] = period_date
+        
+        job = AnalysisJob.objects.filter(**filters).order_by("-created_at").first()
+        
+        if not job:
+            return JsonResponse({
+                "data": [],
+                "total": 0,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": 0
+            })
+        
+        import polars as pl
+        from jobs.models import Artifact, ArtifactKind
+        
+        artifact = job.artifacts.filter(kind=ArtifactKind.PARQUET).first()
+        if not artifact:
+            return JsonResponse({"error": "No hay datos de análisis"}, status=404)
+        
+        try:
+            df = pl.read_parquet(artifact.file.path)
+            
+            # Agregar filtros globales desde request
+            global_filters = {
+                "macrozona": request.GET.get("macrozona", ""),
+                "zona": request.GET.get("zona", ""),
+                "compania": request.GET.get("compania", ""),
+                "grupo": request.GET.get("grupo", ""),
+                "sector": request.GET.get("sector", ""),
+                "gerente": request.GET.get("gerente", ""),
+            }
+            
+            # Aplicar filtros globales
+            df = self._apply_global_filters(df, global_filters)
+            
+            # Agrupar por unidad
+            df_unidad = df.with_columns(
+                pl.coalesce([
+                    pl.col("Nombre_Unidad_SV") if "Nombre_Unidad_SV" in df.columns else pl.lit(None),
+                    pl.col("Nombre_Unidad_PA") if "Nombre_Unidad_PA" in df.columns else pl.lit(None),
+                    pl.col("Unidad_Str")
+                ]).alias("Nombre_Unidad_Display")
+            )
+            
+            by_unidad = df_unidad.group_by("Unidad_Str").agg([
+                pl.col("Personal_Real").sum().alias("pa"),
+                pl.col("Personal_Estimado").sum().alias("sv"),
+                (pl.col("Personal_Real").sum() - pl.col("Personal_Estimado").sum()).alias("diferencia"),
+                pl.col("Nombre_Unidad_Display").first().alias("nombre"),
+                pl.len().alias("servicios")
+            ])
+            
+            # Aplicar búsqueda
+            if search:
+                search_lower = search.lower()
+                by_unidad = by_unidad.filter(
+                    pl.col("Unidad_Str").cast(pl.String).str.to_lowercase().str.contains(search_lower) |
+                    pl.col("nombre").cast(pl.String).str.to_lowercase().str.contains(search_lower)
+                )
+            
+            total = len(by_unidad)
+            
+            # Aplicar ordenamiento
+            if sort_by == "pa":
+                by_unidad = by_unidad.sort("pa", descending=(sort_order == "desc"))
+            elif sort_by == "sv":
+                by_unidad = by_unidad.sort("sv", descending=(sort_order == "desc"))
+            elif sort_by == "diferencia":
+                by_unidad = by_unidad.sort("diferencia", descending=(sort_order == "desc"))
+            elif sort_by == "nombre":
+                by_unidad = by_unidad.sort("nombre", descending=(sort_order == "desc"))
+            else:
+                by_unidad = by_unidad.sort("pa", descending=True)
+            
+            # Paginación
+            offset = (page - 1) * per_page
+            df_page = by_unidad.slice(offset, per_page)
+            
+            data = df_page.to_dicts()
+            
+            return JsonResponse({
+                "data": data,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (total + per_page - 1) // per_page
+            })
+            
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    
+    def _apply_global_filters(self, df, filters):
+        """Aplica filtros globales al DataFrame."""
+        import polars as pl
+        
+        if filters.get("macrozona"):
+            df = df.filter(pl.col("Macrozona_SV") == filters["macrozona"])
+        
+        if filters.get("zona"):
+            zona_filter = pl.lit(False)
+            if "Zona_SV" in df.columns:
+                zona_filter = zona_filter | (pl.col("Zona_SV") == filters["zona"])
+            if "Zona_PA" in df.columns:
+                zona_filter = zona_filter | (pl.col("Zona_PA") == filters["zona"])
+            df = df.filter(zona_filter)
+        
+        if filters.get("compania"):
+            compania_filter = pl.lit(False)
+            if "Compañía_SV" in df.columns:
+                compania_filter = compania_filter | (pl.col("Compañía_SV") == filters["compania"])
+            if "Compañía_PA" in df.columns:
+                compania_filter = compania_filter | (pl.col("Compañía_PA") == filters["compania"])
+            df = df.filter(compania_filter)
+        
+        if filters.get("grupo"):
+            grupo_filter = pl.lit(False)
+            if "Nombre_Grupo_SV" in df.columns:
+                grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_SV") == filters["grupo"])
+            if "Nombre_Grupo_PA" in df.columns:
+                grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_PA") == filters["grupo"])
+            df = df.filter(grupo_filter)
+        
+        if filters.get("sector"):
+            sector_filter = pl.lit(False)
+            if "Sector_SV" in df.columns:
+                sector_filter = sector_filter | (pl.col("Sector_SV") == filters["sector"])
+            if "Sector_PA" in df.columns:
+                sector_filter = sector_filter | (pl.col("Sector_PA") == filters["sector"])
+            df = df.filter(sector_filter)
+        
+        if filters.get("gerente"):
+            gerente_filter = pl.lit(False)
+            if "Gerencia_SV" in df.columns:
+                gerente_filter = gerente_filter | (pl.col("Gerencia_SV") == filters["gerente"])
+            if "Gerencia_PA" in df.columns:
+                gerente_filter = gerente_filter | (pl.col("Gerencia_PA") == filters["gerente"])
+            df = df.filter(gerente_filter)
+        
+        return df
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class ServicesAPIView(View):
+    """API para obtener datos de servicios con paginación."""
+    
+    def get(self, request):
+        tenant_slug = request.GET.get("tenant", "default")
+        period = request.GET.get("period")
+        page = int(request.GET.get("page", 1))
+        per_page = int(request.GET.get("per_page", 25))
+        search = request.GET.get("search", "")
+        sort_by = request.GET.get("sort_by", "pa")
+        sort_order = request.GET.get("sort_order", "desc")
+        
+        try:
+            tenant = Tenant.objects.get(slug=tenant_slug)
+        except Tenant.DoesNotExist:
+            return JsonResponse({"error": "Tenant no encontrado"}, status=404)
+        
+        filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
+        if period:
+            from datetime import datetime
+            period_date = datetime.strptime(f"{period}-01", "%Y-%m-%d").date()
+            filters["period_month"] = period_date
+        
+        job = AnalysisJob.objects.filter(**filters).order_by("-created_at").first()
+        
+        if not job:
+            return JsonResponse({
+                "data": [],
+                "total": 0,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": 0
+            })
+        
+        import polars as pl
+        from jobs.models import Artifact, ArtifactKind
+        
+        artifact = job.artifacts.filter(kind=ArtifactKind.PARQUET).first()
+        if not artifact:
+            return JsonResponse({"error": "No hay datos de análisis"}, status=404)
+        
+        try:
+            df = pl.read_parquet(artifact.file.path)
+            
+            # Agregar filtros globales desde request
+            global_filters = {
+                "macrozona": request.GET.get("macrozona", ""),
+                "zona": request.GET.get("zona", ""),
+                "compania": request.GET.get("compania", ""),
+                "grupo": request.GET.get("grupo", ""),
+                "sector": request.GET.get("sector", ""),
+                "gerente": request.GET.get("gerente", ""),
+            }
+            
+            # Aplicar filtros globales
+            df = self._apply_global_filters(df, global_filters)
+            
+            # Agrupar por servicio
+            df_servicio = df.with_columns(
+                pl.coalesce([
+                    pl.col("Nombre_Servicio_SV") if "Nombre_Servicio_SV" in df.columns else pl.lit(None),
+                    pl.col("Nombre_Servicio_PA") if "Nombre_Servicio_PA" in df.columns else pl.lit(None),
+                    pl.col("Servicio_Limpio")
+                ]).alias("Nombre_Servicio_Display")
+            )
+            
+            by_servicio = df_servicio.group_by("Servicio_Limpio").agg([
+                pl.col("Personal_Real").sum().alias("pa"),
+                pl.col("Personal_Estimado").sum().alias("sv"),
+                (pl.col("Personal_Real").sum() - pl.col("Personal_Estimado").sum()).alias("diferencia"),
+                pl.col("Nombre_Servicio_Display").first().alias("nombre"),
+                pl.len().alias("registros")
+            ])
+            
+            # Aplicar búsqueda
+            if search:
+                search_lower = search.lower()
+                by_servicio = by_servicio.filter(
+                    pl.col("Servicio_Limpio").cast(pl.String).str.to_lowercase().str.contains(search_lower) |
+                    pl.col("nombre").cast(pl.String).str.to_lowercase().str.contains(search_lower)
+                )
+            
+            total = len(by_servicio)
+            
+            # Aplicar ordenamiento
+            if sort_by == "pa":
+                by_servicio = by_servicio.sort("pa", descending=(sort_order == "desc"))
+            elif sort_by == "sv":
+                by_servicio = by_servicio.sort("sv", descending=(sort_order == "desc"))
+            elif sort_by == "diferencia":
+                by_servicio = by_servicio.sort("diferencia", descending=(sort_order == "desc"))
+            elif sort_by == "nombre":
+                by_servicio = by_servicio.sort("nombre", descending=(sort_order == "desc"))
+            else:
+                by_servicio = by_servicio.sort("pa", descending=True)
+            
+            # Paginación
+            offset = (page - 1) * per_page
+            df_page = by_servicio.slice(offset, per_page)
+            
+            data = df_page.to_dicts()
+            
+            return JsonResponse({
+                "data": data,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (total + per_page - 1) // per_page
+            })
+            
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    
+    def _apply_global_filters(self, df, filters):
+        """Aplica filtros globales al DataFrame."""
+        import polars as pl
+        
+        if filters.get("macrozona"):
+            df = df.filter(pl.col("Macrozona_SV") == filters["macrozona"])
+        
+        if filters.get("zona"):
+            zona_filter = pl.lit(False)
+            if "Zona_SV" in df.columns:
+                zona_filter = zona_filter | (pl.col("Zona_SV") == filters["zona"])
+            if "Zona_PA" in df.columns:
+                zona_filter = zona_filter | (pl.col("Zona_PA") == filters["zona"])
+            df = df.filter(zona_filter)
+        
+        if filters.get("compania"):
+            compania_filter = pl.lit(False)
+            if "Compañía_SV" in df.columns:
+                compania_filter = compania_filter | (pl.col("Compañía_SV") == filters["compania"])
+            if "Compañía_PA" in df.columns:
+                compania_filter = compania_filter | (pl.col("Compañía_PA") == filters["compania"])
+            df = df.filter(compania_filter)
+        
+        if filters.get("grupo"):
+            grupo_filter = pl.lit(False)
+            if "Nombre_Grupo_SV" in df.columns:
+                grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_SV") == filters["grupo"])
+            if "Nombre_Grupo_PA" in df.columns:
+                grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_PA") == filters["grupo"])
+            df = df.filter(grupo_filter)
+        
+        if filters.get("sector"):
+            sector_filter = pl.lit(False)
+            if "Sector_SV" in df.columns:
+                sector_filter = sector_filter | (pl.col("Sector_SV") == filters["sector"])
+            if "Sector_PA" in df.columns:
+                sector_filter = sector_filter | (pl.col("Sector_PA") == filters["sector"])
+            df = df.filter(sector_filter)
+        
+        if filters.get("gerente"):
+            gerente_filter = pl.lit(False)
+            if "Gerencia_SV" in df.columns:
+                gerente_filter = gerente_filter | (pl.col("Gerencia_SV") == filters["gerente"])
+            if "Gerencia_PA" in df.columns:
+                gerente_filter = gerente_filter | (pl.col("Gerencia_PA") == filters["gerente"])
+            df = df.filter(gerente_filter)
+        
+        return df

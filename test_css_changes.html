@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSS Changes Test</title>
+    <style>
+        /* Simulate the dark theme background */
+        body {
+            background-color: #020510;
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        
+        /* Test table with the new styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table-fixed-header thead {
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          background: linear-gradient(120deg, rgba(255, 44, 85, 0.25), rgba(0, 247, 255, 0.12));
+          border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+        }
+        
+        table th {
+          color: white !important;
+          letter-spacing: 0.08em;
+          padding: 1rem 0.75rem;
+          text-align: left;
+        }
+        
+        table td {
+          color: #c9d3ea;
+          padding: 0.75rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        table tbody tr:hover {
+          background: rgba(255, 44, 85, 0.12);
+        }
+        
+        tfoot {
+          background: linear-gradient(120deg, rgba(0, 247, 220, 0.18), rgba(255, 44, 85, 0.12));
+          border-top: 1px solid rgba(255, 255, 255, 0.16);
+        }
+        
+        tfoot td {
+          color: white !important;
+          font-weight: 600;
+          padding: 1rem 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Dashboard Table CSS Test</h1>
+    <p>Testing the new hover color, header, and total row styling</p>
+    
+    <div style="margin: 20px 0;">
+        <h3>Before Changes:</h3>
+        <ul>
+            <li>Hover color: rgba(255, 255, 255, 0.04) - too light, clashed with dark theme</li>
+            <li>Header: lighter gradient that wasn't visually appealing</li>
+            <li>Total row: used bg-blue-50 which clashed with dark theme</li>
+        </ul>
+    </div>
+    
+    <div style="margin: 20px 0;">
+        <h3>After Changes:</h3>
+        <ul>
+            <li>Hover color: rgba(255, 44, 85, 0.12) - red tint matching theme</li>
+            <li>Header: stronger gradient with better contrast</li>
+            <li>Total row: cyan/red gradient matching theme colors</li>
+        </ul>
+    </div>
+    
+    <table>
+        <thead class="table-fixed-header">
+            <tr>
+                <th>Client</th>
+                <th>PA</th>
+                <th>SV</th>
+                <th>Difference</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Client A</td>
+                <td>100</td>
+                <td>90</td>
+                <td>10</td>
+            </tr>
+            <tr>
+                <td>Client B</td>
+                <td>85</td>
+                <td>95</td>
+                <td>-10</td>
+            </tr>
+            <tr>
+                <td>Client C</td>
+                <td>120</td>
+                <td>100</td>
+                <td>20</td>
+            </tr>
+        </tbody>
+        <tfoot>
+            <tr>
+                <td>Total</td>
+                <td>305</td>
+                <td>285</td>
+                <td>20</td>
+            </tr>
+        </tfoot>
+    </table>
+    
+    <div style="margin: 20px 0; padding: 15px; background: rgba(255, 255, 255, 0.05); border-radius: 5px;">
+        <h3>Test Instructions:</h3>
+        <ol>
+            <li>Hover over table rows - should show red tint (rgba(255, 44, 85, 0.12))</li>
+            <li>Check header - should have stronger gradient background</li>
+            <li>Check total row - should have cyan/red gradient background</li>
+            <li>All text should be readable against the dark background</li>
+        </ol>
+    </div>
+</body>
+</html>

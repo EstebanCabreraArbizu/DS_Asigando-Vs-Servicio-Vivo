@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Table Headers - PA vs SV Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Critical table header overrides - force dark theme */
+        table thead th,
+        .table-fixed-header thead th,
+        .min-w-full thead th {
+            color: #f3f7ff !important;
+            background-color: #0a0f1f !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
+        }
+
+        /* Override all Tailwind table header classes */
+        th[class*="text-gray"],
+        th[class*="bg-"],
+        thead[class*="bg-"] {
+            color: #f3f7ff !important;
+            background-color: #0a0f1f !important;
+        }
+
+        /* Table header hover effects */
+        table thead th:hover {
+            background-color: rgba(255, 44, 85, 0.2) !important;
+            color: #f3f7ff !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 min-h-screen p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-white text-3xl font-bold mb-8">Test Table Headers - Dark Theme</h1>
+        
+        <!-- Test Table 1: Fixed Header Table -->
+        <div class="bg-white rounded-lg shadow mb-8">
+            <div class="p-4 border-b">
+                <h3 class="font-semibold text-gray-800">Test Table 1: Fixed Header (table-fixed-header)</h3>
+            </div>
+            <div class="overflow-x-auto max-h-64 overflow-y-auto">
+                <table class="min-w-full table-fixed-header">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Personal Real</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Personal Estimado</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        <tr>
+                            <td class="px-4 py-2 text-sm">Cliente Test 1</td>
+                            <td class="px-4 py-2 text-sm text-right">100</td>
+                            <td class="px-4 py-2 text-sm text-right">95</td>
+                            <td class="px-4 py-2 text-center"><span class="status-badge estado-EXACTO">EXACTO</span></td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2 text-sm">Cliente Test 2</td>
+                            <td class="px-4 py-2 text-sm text-right">150</td>
+                            <td class="px-4 py-2 text-sm text-right">120</td>
+                            <td class="px-4 py-2 text-center"><span class="status-badge estado-SOBRECARGA">SOBRECARGA</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Test Table 2: Regular Table -->
+        <div class="bg-white rounded-lg shadow mb-8">
+            <div class="p-4 border-b">
+                <h3 class="font-semibold text-gray-800">Test Table 2: Regular Table (min-w-full)</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer" data-sort="Cliente">Cliente</th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer" data-sort="PA">PA</th>
+                            <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer" data-sort="SV">SV</th>
+                            <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 text-sm">
+                        <tr>
+                            <td class="px-3 py-2">Cliente Test A</td>
+                            <td class="px-3 py-2 text-right font-medium text-blue-600">80</td>
+                            <td class="px-3 py-2 text-right font-medium text-green-600">75</td>
+                            <td class="px-3 py-2 text-center"><span class="status-badge estado-FALTA">FALTA</span></td>
+                        </tr>
+                        <tr>
+                            <td class="px-3 py-2">Cliente Test B</td>
+                            <td class="px-3 py-2 text-right font-medium text-blue-600">200</td>
+                            <td class="px-3 py-2 text-right font-medium text-green-600">180</td>
+                            <td class="px-3 py-2 text-center"><span class="status-badge estado-SOBRECARGA">SOBRECARGA</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="text-white bg-gray-800 p-4 rounded-lg">
+            <h3 class="font-bold mb-2">Instructions:</h3>
+            <ul class="list-disc list-inside space-y-1">
+                <li>Table headers should be dark (#0a0f1f background) with light text (#f3f7ff)</li>
+                <li>Hover over table headers to see the red hover effect</li>
+                <li>If headers appear white/gray, the CSS overrides are not working</li>
+                <li>This test simulates the exact classes used in the dashboard</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

@@ -77,8 +77,67 @@
             background: #F3F4F6;
             color: #9CA3AF;
         }
+
+        /* CRITICAL TABLE HEADER OVERRIDES - MAXIMUM SPECIFICITY */
+        html body table thead th,
+        html body table thead tr th,
+        html body .table-fixed-header thead th,
+        html body .table-fixed-header thead tr th,
+        html body .min-w-full thead th,
+        html body .min-w-full thead tr th {
+            color: #f3f7ff !important;
+            background-color: #0a0f1f !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
+            letter-spacing: 0.08em !important;
+            padding: 1rem 0.75rem !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            font-size: 0.85rem !important;
+        }
+
+        /* Force right and center alignment overrides */
+        html body table thead th.text-right,
+        html body table thead th.text-center {
+            text-align: right !important;
+            color: #f3f7ff !important;
+            background-color: #0a0f1f !important;
+        }
+
+        html body table thead th.text-center {
+            text-align: center !important;
+        }
+
+        /* Override ALL Tailwind table header classes */
+        html body th[class*="text-gray"],
+        html body th[class*="bg-"],
+        html body thead[class*="bg-"],
+        html body .bg-gray-50 {
+            color: #f3f7ff !important;
+            background-color: #0a0f1f !important;
+        }
+
+        /* Table header hover effects */
+        html body table thead th:hover,
+        html body .table-fixed-header thead th:hover {
+            background-color: rgba(255, 44, 85, 0.2) !important;
+            color: #f3f7ff !important;
+        }
+
+        /* Sortable headers */
+        html body table th[data-sort]:hover {
+            background-color: rgba(255, 44, 85, 0.25) !important;
+            cursor: pointer;
+        }
+
+        /* Table container styling */
+        html body .table-fixed-header thead {
+            backdrop-filter: blur(10px) !important;
+            -webkit-backdrop-filter: blur(10px) !important;
+            background: linear-gradient(120deg, rgba(255, 44, 85, 0.25), rgba(0, 247, 255, 0.12)) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
+        }
     </style>
-    <link rel="stylesheet" href="{% static 'dashboard/main.css' %}">
+    <link rel="stylesheet" href="{% static 'dashboard/main.css' %}?v=20241231">
 </head>
 
 <body class="bg-gray-100 min-h-screen">
@@ -287,7 +346,7 @@
                                 <td colspan="8" class="px-4 py-8 text-center text-gray-500">Cargando...</td>
                             </tr>
                         </tbody>
-                        <tfoot class="bg-blue-50 font-semibold">
+                        <tfoot class="font-semibold">
                             <tr id="totals-clientes">
                                 <td class="px-4 py-3 text-sm">Total</td>
                                 <td class="px-4 py-3"></td>
@@ -299,6 +358,23 @@
                                 <td class="px-4 py-3"></td>
                             </tr>
                         </tfoot>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                <div class="p-4 border-t flex items-center justify-between">
+                    <div class="text-sm text-gray-600">
+                        <span id="page-start-clientes">0</span> - <span id="page-end-clientes">0</span> de <span
+                            id="total-records-clientes">0</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="prev-page-clientes"
+                            class="px-3 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-50" disabled>←
+                            Anterior</button>
+                        <span id="page-info-clientes" class="text-sm px-2">1</span>
+                        <button id="next-page-clientes"
+                            class="px-3 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-50">Siguiente
+                            →</button>
+                    </div>
                     </table>
                 </div>
             </div>
@@ -337,7 +413,7 @@
                                 <td colspan="7" class="px-4 py-8 text-center text-gray-500">Cargando...</td>
                             </tr>
                         </tbody>
-                        <tfoot class="bg-blue-50 font-semibold">
+                        <tfoot class="font-semibold">
                             <tr id="totals-unidades">
                                 <td class="px-4 py-3 text-sm">Total</td>
                                 <td class="px-4 py-3 text-right text-sm" id="total-pa-uni">--</td>
@@ -348,6 +424,23 @@
                                 <td class="px-4 py-3"></td>
                             </tr>
                         </tfoot>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                <div class="p-4 border-t flex items-center justify-between">
+                    <div class="text-sm text-gray-600">
+                        <span id="page-start-unidades">0</span> - <span id="page-end-unidades">0</span> de <span
+                            id="total-records-unidades">0</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="prev-page-unidades"
+                            class="px-3 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-50" disabled>←
+                            Anterior</button>
+                        <span id="page-info-unidades" class="text-sm px-2">1</span>
+                        <button id="next-page-unidades"
+                            class="px-3 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-50">Siguiente
+                            →</button>
+                    </div>
                     </table>
                 </div>
             </div>
@@ -386,7 +479,7 @@
                                 <td colspan="7" class="px-4 py-8 text-center text-gray-500">Cargando...</td>
                             </tr>
                         </tbody>
-                        <tfoot class="bg-blue-50 font-semibold">
+                        <tfoot class="font-semibold">
                             <tr id="totals-servicios">
                                 <td class="px-4 py-3 text-sm">Total</td>
                                 <td class="px-4 py-3 text-right text-sm" id="total-pa-srv">--</td>
@@ -397,6 +490,23 @@
                                 <td class="px-4 py-3"></td>
                             </tr>
                         </tfoot>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                <div class="p-4 border-t flex items-center justify-between">
+                    <div class="text-sm text-gray-600">
+                        <span id="page-start-servicios">0</span> - <span id="page-end-servicios">0</span> de <span
+                            id="total-records-servicios">0</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="prev-page-servicios"
+                            class="px-3 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-50" disabled>←
+                            Anterior</button>
+                        <span id="page-info-servicios" class="text-sm px-2">1</span>
+                        <button id="next-page-servicios"
+                            class="px-3 py-1 border rounded text-sm hover:bg-gray-50 disabled:opacity-50">Siguiente
+                            →</button>
+                    </div>
                     </table>
                 </div>
             </div>
@@ -518,12 +628,106 @@
         let sortOrder = 'desc';
         let metricsData = null;
         let chartsInstances = {};
+        
+        // Estado de paginación para tablas
+        let clientPage = 1;
+        let unitPage = 1;
+        let servicePage = 1;
+        const perPage = 25;
+
+        // ===== TABLE HEADER STYLE ENFORCER =====
+        function enforceTableHeaderStyles() {
+            // Force apply dark theme to all table headers
+            const style = document.createElement('style');
+            style.id = 'table-header-overrides';
+            style.textContent = `
+                html body table thead th,
+                html body table thead tr th,
+                html body .table-fixed-header thead th,
+                html body .table-fixed-header thead tr th,
+                html body .min-w-full thead th,
+                html body .min-w-full thead tr th {
+                    color: #f3f7ff !important;
+                    background-color: #0a0f1f !important;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
+                    letter-spacing: 0.08em !important;
+                    padding: 1rem 0.75rem !important;
+                    font-weight: 600 !important;
+                    text-transform: uppercase !important;
+                    font-size: 0.85rem !important;
+                }
+                html body table thead th.text-right,
+                html body table thead th.text-center {
+                    text-align: right !important;
+                    color: #f3f7ff !important;
+                    background-color: #0a0f1f !important;
+                }
+                html body table thead th.text-center {
+                    text-align: center !important;
+                }
+                html body th[class*="text-gray"],
+                html body th[class*="bg-"],
+                html body thead[class*="bg-"],
+                html body .bg-gray-50 {
+                    color: #f3f7ff !important;
+                    background-color: #0a0f1f !important;
+                }
+                html body .table-fixed-header thead {
+                    backdrop-filter: blur(10px) !important;
+                    -webkit-backdrop-filter: blur(10px) !important;
+                    background: linear-gradient(120deg, rgba(255, 44, 85, 0.25), rgba(0, 247, 255, 0.12)) !important;
+                }
+                html body table thead th:hover {
+                    background-color: rgba(255, 44, 85, 0.2) !important;
+                    color: #f3f7ff !important;
+                }
+            `;
+            
+            // Remove existing style if present
+            const existingStyle = document.getElementById('table-header-overrides');
+            if (existingStyle) {
+                existingStyle.remove();
+            }
+            
+            // Add new style
+            document.head.appendChild(style);
+            
+            // Also directly apply styles to existing table headers
+            document.querySelectorAll('table thead th').forEach(th => {
+                th.style.color = '#f3f7ff';
+                th.style.backgroundColor = '#0a0f1f';
+                th.style.borderBottom = '1px solid rgba(255, 255, 255, 0.16)';
+                th.style.letterSpacing = '0.08em';
+                th.style.padding = '1rem 0.75rem';
+                th.style.fontWeight = '600';
+                th.style.textTransform = 'uppercase';
+                th.style.fontSize = '0.85rem';
+            });
+            
+            // Apply to thead containers
+            document.querySelectorAll('table thead').forEach(thead => {
+                thead.style.backgroundColor = '#0a0f1f';
+            });
+        }
 
         // ===== INICIALIZACIÓN =====
         document.addEventListener('DOMContentLoaded', async () => {
+            // Force reload CSS to ensure latest styles
+            const links = document.querySelectorAll('link[href*="main.css"]');
+            links.forEach(link => {
+                const href = link.href;
+                link.href = href + '&t=' + Date.now();
+            });
+            
+            // Enforce table header styles immediately
+            enforceTableHeaderStyles();
+            
             setupTabs();
             setupEventListeners();
             await loadPeriods();
+            
+            // Re-enforce styles after initial load
+            setTimeout(enforceTableHeaderStyles, 100);
         });
 
         // ===== TABS =====
@@ -545,6 +749,18 @@
                     if (btn.dataset.tab === 'detalle' && metricsData) {
                         loadTableData();
                     }
+                    if (btn.dataset.tab === 'clientes' && metricsData) {
+                        loadClientData();
+                    }
+                    if (btn.dataset.tab === 'unidades' && metricsData) {
+                        loadUnitData();
+                    }
+                    if (btn.dataset.tab === 'servicios' && metricsData) {
+                        loadServiceData();
+                    }
+                    
+                    // Re-enforce table header styles after tab switch
+                    setTimeout(enforceTableHeaderStyles, 50);
                 });
             });
         }
@@ -618,6 +834,15 @@
                 updateFilters(metricsData.filtros_disponibles);
                 renderAllCharts(metricsData);
                 updateTables(metricsData.charts);
+                
+                // Recargar datos paginados si estamos en esas pestañas
+                const activeTab = document.querySelector('.tab-btn.tab-active');
+                if (activeTab) {
+                    const tabName = activeTab.dataset.tab;
+                    if (tabName === 'clientes') loadClientData();
+                    if (tabName === 'unidades') loadUnitData();
+                    if (tabName === 'servicios') loadServiceData();
+                }
 
             } catch (err) {
                 console.error('Error cargando métricas:', err);
@@ -925,6 +1150,264 @@
             });
         }
 
+        // ===== CARGAR DATOS PAGINADOS DE CLIENTES =====
+        async function loadClientData() {
+            const search = document.getElementById('search-cliente')?.value || '';
+            try {
+                const url = await buildApiUrl(`/dashboard/api/clients/?tenant=default&period=${currentPeriod}&page=${clientPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
+                const response = await fetch(url);
+                const data = await response.json();
+
+                renderClientTable(data);
+                updateClientPagination(data);
+            } catch (err) {
+                console.error('Error cargando datos de clientes:', err);
+            }
+        }
+
+        function renderClientTable(data) {
+            const tbody = document.getElementById('table-clientes');
+            if (!data.data?.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Sin datos</td></tr>';
+                updateClientTotals([]);
+                return;
+            }
+
+            tbody.innerHTML = data.data.map(row => {
+                const pa = row.pa || 0;
+                const sv = row.sv || 0;
+                const diff = row.diferencia || (pa - sv);
+                const cob = sv > 0 ? ((pa / sv) * 100).toFixed(2) : 'Infinito';
+                const pct = sv > 0 ? ((diff / sv) * 100).toFixed(2) : 'Infinito';
+                const estado = getEstadoFromDiff(pa, sv);
+                return `<tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2 text-sm">${row.nombre || row.Cliente_Final || '-'}</td>
+                    <td class="px-4 py-2 text-sm text-gray-500">-</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatNumber(pa)}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium text-green-600">${formatNumber(sv)}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
+                    <td class="px-4 py-2 text-sm text-right">${cob}%</td>
+                    <td class="px-4 py-2 text-sm text-right">${pct}%</td>
+                    <td class="px-4 py-2 text-center"><span class="status-badge estado-${estado}">${estado}</span></td>
+                </tr>`;
+            }).join('');
+
+            updateClientTotals(data.data);
+            
+            // Enforce table header styles after rendering
+            setTimeout(enforceTableHeaderStyles, 10);
+        }
+
+        function updateClientTotals(data) {
+            let totalPa = 0, totalSv = 0, totalDiff = 0;
+            data.forEach(row => {
+                const pa = row.pa || 0;
+                const sv = row.sv || 0;
+                const diff = row.diferencia || (pa - sv);
+                totalPa += pa;
+                totalSv += sv;
+                totalDiff += diff;
+            });
+
+            document.getElementById('total-pa-cli').textContent = formatNumber(totalPa);
+            document.getElementById('total-sv-cli').textContent = formatNumber(totalSv);
+            document.getElementById('total-diff-cli').textContent = formatNumber(totalDiff);
+            document.getElementById('total-cob-cli').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
+            document.getElementById('total-pct-cli').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
+        }
+
+        function updateClientPagination(data) {
+            const start = (data.page - 1) * data.per_page + 1;
+            const end = Math.min(data.page * data.per_page, data.total);
+
+            document.getElementById('page-start-clientes').textContent = data.total > 0 ? start : 0;
+            document.getElementById('page-end-clientes').textContent = end;
+            document.getElementById('total-records-clientes').textContent = data.total;
+            document.getElementById('page-info-clientes').textContent = `${data.page}/${data.total_pages || 1}`;
+
+            document.getElementById('prev-page-clientes').disabled = data.page <= 1;
+            document.getElementById('next-page-clientes').disabled = data.page >= data.total_pages;
+        }
+
+        // ===== CARGAR DATOS PAGINADOS DE UNIDADES =====
+        async function loadUnitData() {
+            const search = document.getElementById('search-unidad')?.value || '';
+            try {
+                const url = await buildApiUrl(`/dashboard/api/units/?tenant=default&period=${currentPeriod}&page=${unitPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
+                const response = await fetch(url);
+                const data = await response.json();
+
+                renderUnitTable(data);
+                updateUnitPagination(data);
+            } catch (err) {
+                console.error('Error cargando datos de unidades:', err);
+            }
+        }
+
+        function renderUnitTable(data) {
+            const tbody = document.getElementById('table-unidades');
+            if (!data.data?.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">Sin datos</td></tr>';
+                updateUnitTotals([]);
+                return;
+            }
+
+            tbody.innerHTML = data.data.map(row => {
+                const pa = row.pa || 0;
+                const sv = row.sv || 0;
+                const diff = row.diferencia || (pa - sv);
+                const cob = sv > 0 ? ((pa / sv) * 100).toFixed(2) : 'Infinito';
+                const pct = sv > 0 ? ((diff / sv) * 100).toFixed(2) : 'Infinito';
+                const estado = getEstadoFromDiff(pa, sv);
+                return `<tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2 text-sm">${row.nombre || row.Unidad_Str || '-'}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatNumber(pa)}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium text-green-600">${formatNumber(sv)}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
+                    <td class="px-4 py-2 text-sm text-right">${cob}%</td>
+                    <td class="px-4 py-2 text-sm text-right">${pct}%</td>
+                    <td class="px-4 py-2 text-center"><span class="status-badge estado-${estado}">${estado}</span></td>
+                </tr>`;
+            }).join('');
+
+            updateUnitTotals(data.data);
+            
+            // Enforce table header styles after rendering
+            setTimeout(enforceTableHeaderStyles, 10);
+        }
+
+        function updateUnitTotals(data) {
+            let totalPa = 0, totalSv = 0, totalDiff = 0;
+            data.forEach(row => {
+                const pa = row.pa || 0;
+                const sv = row.sv || 0;
+                const diff = row.diferencia || (pa - sv);
+                totalPa += pa;
+                totalSv += sv;
+                totalDiff += diff;
+            });
+
+            document.getElementById('total-pa-uni').textContent = formatNumber(totalPa);
+            document.getElementById('total-sv-uni').textContent = formatNumber(totalSv);
+            document.getElementById('total-diff-uni').textContent = formatNumber(totalDiff);
+            document.getElementById('total-cob-uni').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
+            document.getElementById('total-pct-uni').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
+        }
+
+        function updateUnitPagination(data) {
+            const start = (data.page - 1) * data.per_page + 1;
+            const end = Math.min(data.page * data.per_page, data.total);
+
+            document.getElementById('page-start-unidades').textContent = data.total > 0 ? start : 0;
+            document.getElementById('page-end-unidades').textContent = end;
+            document.getElementById('total-records-unidades').textContent = data.total;
+            document.getElementById('page-info-unidades').textContent = `${data.page}/${data.total_pages || 1}`;
+
+            document.getElementById('prev-page-unidades').disabled = data.page <= 1;
+            document.getElementById('next-page-unidades').disabled = data.page >= data.total_pages;
+        }
+
+        // ===== CARGAR DATOS PAGINADOS DE SERVICIOS =====
+        async function loadServiceData() {
+            const search = document.getElementById('search-servicio')?.value || '';
+            try {
+                const url = await buildApiUrl(`/dashboard/api/services/?tenant=default&period=${currentPeriod}&page=${servicePage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
+                const response = await fetch(url);
+                const data = await response.json();
+
+                renderServiceTable(data);
+                updateServicePagination(data);
+            } catch (err) {
+                console.error('Error cargando datos de servicios:', err);
+            }
+        }
+
+        function renderServiceTable(data) {
+            const tbody = document.getElementById('table-servicios');
+            if (!data.data?.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">Sin datos</td></tr>';
+                updateServiceTotals([]);
+                return;
+            }
+
+            tbody.innerHTML = data.data.map(row => {
+                const pa = row.pa || 0;
+                const sv = row.sv || 0;
+                const diff = row.diferencia || (pa - sv);
+                const cob = sv > 0 ? ((pa / sv) * 100).toFixed(2) : 'Infinito';
+                const pct = sv > 0 ? ((diff / sv) * 100).toFixed(2) : 'Infinito';
+                const estado = getEstadoFromDiff(pa, sv);
+                return `<tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2 text-sm">${row.nombre || row.Servicio_Limpio || '-'}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatNumber(pa)}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium text-green-600">${formatNumber(sv)}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
+                    <td class="px-4 py-2 text-sm text-right">${cob}%</td>
+                    <td class="px-4 py-2 text-sm text-right">${pct}%</td>
+                    <td class="px-4 py-2 text-center"><span class="status-badge estado-${estado}">${estado}</span></td>
+                </tr>`;
+            }).join('');
+
+            updateServiceTotals(data.data);
+            
+            // Enforce table header styles after rendering
+            setTimeout(enforceTableHeaderStyles, 10);
+        }
+
+        function updateServiceTotals(data) {
+            let totalPa = 0, totalSv = 0, totalDiff = 0;
+            data.forEach(row => {
+                const pa = row.pa || 0;
+                const sv = row.sv || 0;
+                const diff = row.diferencia || (pa - sv);
+                totalPa += pa;
+                totalSv += sv;
+                totalDiff += diff;
+            });
+
+            document.getElementById('total-pa-srv').textContent = formatNumber(totalPa);
+            document.getElementById('total-sv-srv').textContent = formatNumber(totalSv);
+            document.getElementById('total-diff-srv').textContent = formatNumber(totalDiff);
+            document.getElementById('total-cob-srv').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
+            document.getElementById('total-pct-srv').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
+        }
+
+        function updateServicePagination(data) {
+            const start = (data.page - 1) * data.per_page + 1;
+            const end = Math.min(data.page * data.per_page, data.total);
+
+            document.getElementById('page-start-servicios').textContent = data.total > 0 ? start : 0;
+            document.getElementById('page-end-servicios').textContent = end;
+            document.getElementById('total-records-servicios').textContent = data.total;
+            document.getElementById('page-info-servicios').textContent = `${data.page}/${data.total_pages || 1}`;
+
+            document.getElementById('prev-page-servicios').disabled = data.page <= 1;
+            document.getElementById('next-page-servicios').disabled = data.page >= data.total_pages;
+        }
+
+        // ===== FUNCIÓN AUXILIAR PARA CONSTRUIR URLs CON FILTROS GLOBALES =====
+        async function buildApiUrl(baseUrl) {
+            const params = new URLSearchParams();
+            
+            // Agregar filtros globales
+            const macrozona = document.getElementById('filter-macrozona').value;
+            const zona = document.getElementById('filter-zona').value;
+            const compania = document.getElementById('filter-compania').value;
+            const grupo = document.getElementById('filter-grupo').value;
+            const sector = document.getElementById('filter-sector').value;
+            const gerente = document.getElementById('filter-gerente').value;
+
+            if (macrozona) params.append('macrozona', macrozona);
+            if (zona) params.append('zona', zona);
+            if (compania) params.append('compania', compania);
+            if (grupo) params.append('grupo', grupo);
+            if (sector) params.append('sector', sector);
+            if (gerente) params.append('gerente', gerente);
+            
+            const queryString = params.toString();
+            return queryString ? `${baseUrl}&${queryString}` : baseUrl;
+        }
+
         // ===== ACTUALIZAR TABLAS DE RESUMEN =====
         function updateTables(charts) {
             // Tabla Clientes
@@ -1033,26 +1516,45 @@
                 document.getElementById('total-cob-srv').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
                 document.getElementById('total-pct-srv').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
             }
+            
+            // Enforce table header styles after rendering
+            setTimeout(enforceTableHeaderStyles, 10);
         }
-        // ===== BUSQUEDA EN TABLAS =====
-        // Listeners para inputs de búsqueda
+        // ===== BÚSQUEDA CON PAGINACIÓN =====
+        // Listeners para inputs de búsqueda con debounce
         document.addEventListener('DOMContentLoaded', () => {
+            let searchTimeout;
+            
             const searchCliente = document.getElementById('search-cliente');
             if (searchCliente) {
                 searchCliente.addEventListener('input', () => {
-                    updateTables(metricsData.charts);
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        clientPage = 1;
+                        loadClientData();
+                    }, 300);
                 });
             }
+            
             const searchUnidad = document.getElementById('search-unidad');
             if (searchUnidad) {
                 searchUnidad.addEventListener('input', () => {
-                    updateTables(metricsData.charts);
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        unitPage = 1;
+                        loadUnitData();
+                    }, 300);
                 });
             }
+            
             const searchServicio = document.getElementById('search-servicio');
             if (searchServicio) {
                 searchServicio.addEventListener('input', () => {
-                    updateTables(metricsData.charts);
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(() => {
+                        servicePage = 1;
+                        loadServiceData();
+                    }, 300);
                 });
             }
         });
@@ -1061,7 +1563,9 @@
         async function loadTableData() {
             const search = document.getElementById('search-input').value;
             try {
-                const url = `/dashboard/api/details/?tenant=default&period=${currentPeriod}&page=${currentPage}&per_page=25&search=${encodeURIComponent(search)}&sort_by=${sortBy}&sort_order=${sortOrder}`;
+                // Usar buildApiUrl para incluir filtros globales
+                const baseUrl = `/dashboard/api/details/?tenant=default&period=${currentPeriod}&page=${currentPage}&per_page=25&search=${encodeURIComponent(search)}&sort_by=${sortBy}&sort_order=${sortOrder}`;
+                const url = await buildApiUrl(baseUrl);
                 const response = await fetch(url);
                 const data = await response.json();
 
@@ -1091,6 +1595,9 @@
                     <td class="px-3 py-2 text-center"><span class="status-badge estado-${row.Estado}">${row.Estado || '-'}</span></td>
                 </tr>`;
             }).join('');
+            
+            // Enforce table header styles after rendering
+            setTimeout(enforceTableHeaderStyles, 10);
         }
 
         function updatePagination(data) {
@@ -1112,6 +1619,9 @@
             document.getElementById('period-select').addEventListener('change', e => {
                 currentPeriod = e.target.value;
                 currentPage = 1;
+                clientPage = 1;
+                unitPage = 1;
+                servicePage = 1;
                 loadMetrics(currentPeriod);
             });
 
@@ -1132,9 +1642,45 @@
                 });
             });
 
-            // Paginación
+            // Paginación Detalle
             document.getElementById('prev-page').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadTableData(); } });
             document.getElementById('next-page').addEventListener('click', () => { currentPage++; loadTableData(); });
+            
+            // Paginación Clientes
+            document.getElementById('prev-page-clientes').addEventListener('click', () => { 
+                if (clientPage > 1) { 
+                    clientPage--; 
+                    loadClientData(); 
+                } 
+            });
+            document.getElementById('next-page-clientes').addEventListener('click', () => { 
+                clientPage++; 
+                loadClientData(); 
+            });
+            
+            // Paginación Unidades
+            document.getElementById('prev-page-unidades').addEventListener('click', () => { 
+                if (unitPage > 1) { 
+                    unitPage--; 
+                    loadUnitData(); 
+                } 
+            });
+            document.getElementById('next-page-unidades').addEventListener('click', () => { 
+                unitPage++; 
+                loadUnitData(); 
+            });
+            
+            // Paginación Servicios
+            document.getElementById('prev-page-servicios').addEventListener('click', () => { 
+                if (servicePage > 1) { 
+                    servicePage--; 
+                    loadServiceData(); 
+                } 
+            });
+            document.getElementById('next-page-servicios').addEventListener('click', () => { 
+                servicePage++; 
+                loadServiceData(); 
+            });
 
             // Modal comparación
             document.getElementById('compare-btn').addEventListener('click', () => document.getElementById('compare-modal').classList.remove('hidden'));
@@ -1147,13 +1693,35 @@
             // Limpiar filtros
             document.getElementById('clear-filters').addEventListener('click', () => {
                 document.querySelectorAll('.filter-select').forEach(s => s.selectedIndex = 0);
+                // Reset pagination
+                clientPage = 1;
+                unitPage = 1;
+                servicePage = 1;
+                currentPage = 1;
                 loadMetrics(currentPeriod);  // Recargar sin filtros
+                
+                // Si estamos en el tab de detalle, recargar tabla de detalle
+                const activeTab = document.querySelector('.tab-btn.tab-active');
+                if (activeTab && activeTab.dataset.tab === 'detalle') {
+                    loadTableData();
+                }
             });
 
             // Event listeners para filtros - recargar datos cuando cambian
             document.querySelectorAll('.filter-select').forEach(select => {
                 select.addEventListener('change', () => {
                     loadMetrics(currentPeriod);
+                    // Reset pagination when filters change
+                    clientPage = 1;
+                    unitPage = 1;
+                    servicePage = 1;
+                    currentPage = 1;
+                    
+                    // Si estamos en el tab de detalle, recargar tabla de detalle
+                    const activeTab = document.querySelector('.tab-btn.tab-active');
+                    if (activeTab && activeTab.dataset.tab === 'detalle') {
+                        loadTableData();
+                    }
                 });
             });
         }

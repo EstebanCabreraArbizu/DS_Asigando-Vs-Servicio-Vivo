@@ -479,13 +479,140 @@ textarea::placeholder {
 .table-fixed-header thead {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  background: linear-gradient(120deg, rgba(255, 44, 85, 0.16), rgba(0, 247, 255, 0.08));
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(120deg, rgba(255, 44, 85, 0.25), rgba(0, 247, 255, 0.12)) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
 }
 
-table th {
+/* ============================================
+   TABLE HEADERS - MAXIMUM SPECIFICITY OVERRIDES
+   ============================================ */
+
+/* CRITICAL: Override ALL table headers with maximum specificity */
+html body table thead th,
+html body table thead tr th,
+html body .table-fixed-header thead th,
+html body .table-fixed-header thead tr th,
+html body .min-w-full thead th,
+html body .min-w-full thead tr th {
   color: var(--text-primary) !important;
-  letter-spacing: 0.08em;
+  background-color: var(--bg-10) !important;
+  border-bottom: 1px solid var(--border) !important;
+  letter-spacing: 0.08em !important;
+  padding: 1rem 0.75rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  font-size: 0.85rem !important;
+  text-align: left !important;
+}
+
+/* Force override for RIGHT and CENTER aligned headers */
+html body table thead th.text-right,
+html body table thead th.text-center,
+html body .table-fixed-header thead th.text-right,
+html body .table-fixed-header thead th.text-center,
+html body .min-w-full thead th.text-right,
+html body .min-w-full thead th.text-center {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-10) !important;
+  text-align: right !important;
+}
+
+html body table thead th.text-center,
+html body .table-fixed-header thead th.text-center,
+html body .min-w-full thead th.text-center {
+  text-align: center !important;
+}
+
+/* Override ALL Tailwind text and background classes */
+html body table thead th[class*="text-gray"],
+html body table thead th[class*="bg-"],
+html body .table-fixed-header thead th[class*="text-gray"],
+html body .table-fixed-header thead th[class*="bg-"],
+html body .min-w-full thead th[class*="text-gray"],
+html body .min-w-full thead th[class*="bg-"] {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-10) !important;
+}
+
+/* Specific Tailwind class overrides */
+html body th.text-gray-500,
+html body th.text-gray-900,
+html body th.text-white,
+html body th.text-gray-400,
+html body th.text-gray-300,
+html body th.bg-gray-50,
+html body th.bg-gray-100,
+html body th.bg-white {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-10) !important;
+}
+
+/* Override thead container backgrounds */
+html body table thead,
+html body .table-fixed-header thead,
+html body .min-w-full thead,
+html body thead[class*="bg-"],
+html body .bg-gray-50 {
+  background-color: var(--bg-10) !important;
+}
+
+/* Force override for specific HTML patterns found in main.html */
+html body table .px-4.py-3.text-left.text-xs.font-medium.text-gray-500.uppercase,
+html body table .px-3.py-2.text-left.text-xs.font-medium.text-gray-500.uppercase,
+html body table .px-4.py-3.text-right.text-xs.font-medium.text-gray-500.uppercase,
+html body table .px-3.py-2.text-right.text-xs.font-medium.text-gray-500.uppercase,
+html body table .px-4.py-3.text-center.text-xs.font-medium.text-gray-500.uppercase,
+html body table .px-3.py-2.text-center.text-xs.font-medium.text-gray-500.uppercase {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-10) !important;
+}
+
+/* Hover states with maximum specificity */
+html body table thead th:hover,
+html body .table-fixed-header thead th:hover,
+html body .min-w-full thead th:hover {
+  background-color: rgba(255, 44, 85, 0.2) !important;
+  color: var(--text-primary) !important;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Sortable column headers */
+html body table th[data-sort]:hover {
+  background-color: rgba(255, 44, 85, 0.25) !important;
+  cursor: pointer;
+}
+
+/* Table container styling */
+html body .table-fixed-header {
+  background-color: transparent !important;
+}
+
+html body .table-fixed-header thead {
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  background: linear-gradient(120deg, rgba(255, 44, 85, 0.25), rgba(0, 247, 255, 0.12)) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
+}
+
+/* Ensure ALL table elements use dark theme */
+html body table,
+html body table * {
+  border-color: var(--border) !important;
+}
+
+html body table tbody tr:hover {
+  background: rgba(255, 44, 85, 0.12) !important;
+}
+
+html body table td {
+  color: var(--text-muted) !important;
+}
+
+/* Additional override for any remaining light styles */
+html body * thead,
+html body * th {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-10) !important;
 }
 
 table td {
@@ -493,7 +620,7 @@ table td {
 }
 
 table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 44, 85, 0.12);
 }
 
 .status-badge {
@@ -513,6 +640,18 @@ table tbody tr:hover {
 .estado-NO_PLANIFICADO { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
 .estado-SIN_PERSONAL { background: rgba(132, 94, 255, 0.16); color: #e2d9ff; }
 .estado-SIN_DATOS { background: rgba(255, 255, 255, 0.06); color: var(--text-muted); }
+
+/* Table footer/total row styling */
+tfoot {
+  background: linear-gradient(120deg, rgba(0, 247, 220, 0.18), rgba(255, 44, 85, 0.12));
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+tfoot td {
+  color: var(--text-primary) !important;
+  font-weight: 600;
+  padding: 1rem 0.75rem;
+}
 
 /* ============================================
    SECCIONES / PANEL
