@@ -309,9 +309,68 @@ Ver documentación detallada en:
 
 ---
 
+## � Infraestructura Docker (Producción)
+
+### Servicios Desplegados
+
+| Servicio | Puerto | Descripción |
+|----------|--------|-------------|
+| **Django Web** | 8000 | API REST + Dashboard |
+| **PostgreSQL 16** | 5433 | Base de datos de producción |
+| **MinIO API** | 9000 | Storage S3-compatible |
+| **MinIO Console** | 9001 | Interfaz de administración |
+| **Redis 7** | 6379 | Broker para Celery |
+| **Celery Worker** | - | Procesamiento asíncrono |
+
+### Buckets de MinIO (S3-compatible)
+
+| Bucket | Propósito |
+|--------|-----------|
+| `pavssv-inputs` | Archivos de entrada (PA, SV) |
+| `pavssv-artifacts` | Resultados procesados (Parquet, Excel) |
+| `pavssv-exports` | Archivos para descarga |
+
+### Comandos Rápidos
+
+```bash
+# Levantar toda la infraestructura
+cd server
+docker-compose up --build -d
+
+# Ver logs
+docker logs server-web-1 -f
+
+# Crear superusuario
+docker exec -it server-web-1 python manage.py createsuperuser
+```
+
+### URLs de Acceso
+
+- **Dashboard**: http://localhost:8000/dashboard/
+- **Admin**: http://localhost:8000/admin/
+- **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin123)
+- **API Health**: http://localhost:8000/api/v1/health/
+
+---
+
 ## 🔐 Seguridad
 
-- Autenticación basada en sesiones Django
+### Autenticación
+- **JWT**: Para APIs externas (REST clients, móvil)
+- **Session**: Para dashboard interno (navegador)
+- CORS configurado para dominios permitidos
+
+### Roles y Permisos
+
+| Rol | Ver | Subir | Eliminar | Exportar |
+|-----|-----|-------|----------|----------|
+| Owner | ✅ | ✅ | ✅ | ✅ |
+| Admin | ✅ | ✅ | ✅ | ✅ |
+| Coordinator | ✅ | ✅ | ✅ | ✅ |
+| Analyst | ✅ | ❌ | ❌ | ✅ |
+| Viewer | ✅ | ❌ | ❌ | ❌ |
+
+### Otras medidas
 - Aislamiento de datos por tenant
 - Validación de archivos en upload
 - CSRF protection habilitado
