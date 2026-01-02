@@ -7,18 +7,115 @@ from django.views import View
 from django.views.generic import TemplateView
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.mixins import LoginRequiredMixin
 
 from jobs.models import AnalysisJob, AnalysisSnapshot, JobStatus, Artifact, ArtifactKind
-from tenants.models import Tenant
+from tenants.models import Tenant, Membership, MembershipRole
 
 
-class UploadView(TemplateView):
+def get_user_permissions(user):
+    """
+    Obtiene los permisos del usuario basado en su rol.
+    
+    Returns:
+        dict con los permisos del usuario
+    """
+    if not user or not user.is_authenticated:
+        return {
+            "can_view": False,
+            "can_upload": False,
+            "can_delete": False,
+            "can_export": False,
+            "role": None,
+            "role_display": "No autenticado",
+        }
+    
+    # Superuser y staff tienen todos los permisos
+    if user.is_superuser or user.is_staff:
+        return {
+            "can_view": True,
+            "can_upload": True,
+            "can_delete": True,
+            "can_export": True,
+            "role": "admin",
+            "role_display": "Administrador",
+        }
+    
+    # Buscar membership del usuario
+    membership = Membership.objects.filter(user=user, is_default=True).first()
+    if not membership:
+        membership = Membership.objects.filter(user=user).first()
+    
+    if not membership:
+        return {
+            "can_view": True,
+            "can_upload": False,
+            "can_delete": False,
+            "can_export": False,
+            "role": "viewer",
+            "role_display": "Visor",
+        }
+    
+    role = membership.role
+    
+    # Definir permisos por rol
+    permissions = {
+        MembershipRole.OWNER: {
+            "can_view": True,
+            "can_upload": True,
+            "can_delete": True,
+            "can_export": True,
+            "role": "owner",
+            "role_display": "Propietario",
+        },
+        MembershipRole.ADMIN: {
+            "can_view": True,
+            "can_upload": True,
+            "can_delete": True,
+            "can_export": True,
+            "role": "admin",
+            "role_display": "Administrador",
+        },
+        MembershipRole.COORDINATOR: {
+            "can_view": True,
+            "can_upload": True,
+            "can_delete": True,
+            "can_export": True,
+            "role": "coordinator",
+            "role_display": "Coordinador",
+        },
+        MembershipRole.ANALYST: {
+            "can_view": True,
+            "can_upload": False,
+            "can_delete": False,
+            "can_export": True,
+            "role": "analyst",
+            "role_display": "Analista",
+        },
+        MembershipRole.VIEWER: {
+            "can_view": True,
+            "can_upload": False,
+            "can_delete": False,
+            "can_export": False,
+            "role": "viewer",
+            "role_display": "Visor",
+        },
+    }
+    
+    return permissions.get(role, permissions[MembershipRole.VIEWER])
+
+
+class UploadView(LoginRequiredMixin, TemplateView):
     """Vista para subir archivos Excel con drag & drop."""
     template_name = "dashboard/upload.html"
+    login_url = "/admin/login/"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         tenant = Tenant.objects.filter(slug="default").first()
+        
+        # Permisos del usuario
+        permissions = get_user_permissions(self.request.user)
         
         # Últimos 10 jobs para mostrar historial
         recent_jobs = AnalysisJob.objects.filter(
@@ -27,18 +124,24 @@ class UploadView(TemplateView):
         
         context["tenant"] = tenant
         context["recent_jobs"] = recent_jobs
+        context["user"] = self.request.user
+        context["permissions"] = permissions
         return context
 
 
-class DashboardView(TemplateView):
+class DashboardView(LoginRequiredMixin, TemplateView):
     """Vista principal del dashboard con gráficos y KPIs."""
     template_name = "dashboard/main.html"
+    login_url = "/admin/login/"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
         # Obtener tenant (por ahora usa default)
         tenant = Tenant.objects.filter(slug="default").first()
+        
+        # Permisos del usuario
+        permissions = get_user_permissions(self.request.user)
         
         # Obtener periodos disponibles
         snapshots = AnalysisSnapshot.objects.filter(
@@ -74,6 +177,8 @@ class DashboardView(TemplateView):
         context["tenant"] = tenant
         context["periods"] = periods
         context["current_period"] = periods[0] if periods else None
+        context["user"] = self.request.user
+        context["permissions"] = permissions
         
         return context
 

@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Subir Archivos - PA vs SV</title>
     <script src="https://cdn.tailwindcss.com"></script>
-
     <link rel="stylesheet" href="{% static 'dashboard/main.css' %}">
 </head>
 <body class="min-h-screen">
@@ -15,12 +14,26 @@
         <div class="container mx-auto px-6 py-4">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="hud-title">📤 Subir Archivos Excel</h1>
-                    <p class="hud-subtitle">Arrastra o selecciona tus archivos de Personal Asignado y Servicio Vivo</p>
+                    <h1 class="hud-title">📤 Gestión de Análisis</h1>
+                    <p class="hud-subtitle">
+                        {% if permissions.can_upload %}
+                        Arrastra o selecciona tus archivos de Personal Asignado y Servicio Vivo
+                        {% else %}
+                        Visualización de análisis (solo lectura)
+                        {% endif %}
+                    </p>
                 </div>
                 <div class="flex items-center gap-4">
+                    <!-- User info -->
+                    <div class="text-right text-sm">
+                        <p class="font-medium text-gray-700">{{ user.username }}</p>
+                        <p class="text-xs text-gray-500">{{ permissions.role_display }}</p>
+                    </div>
                     <a href="/dashboard/" class="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition">
                         📊 Ver Dashboard
+                    </a>
+                    <a href="/admin/logout/" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-200 transition">
+                        🚪 Salir
                     </a>
                 </div>
             </div>
@@ -28,9 +41,10 @@
     </header>
 
     <main class="container mx-auto px-6 py-8">
-        <!-- Upload Section -->
+        {% if permissions.can_upload %}
+        <!-- Upload Section - Solo para admin/coordinator -->
         <section class="bg-white rounded-xl p-8 mb-8">
-            <h2 class="hud-title text-xl mb-6">Nuevo Análisis</h2>
+            <h2 class="hud-title text-xl mb-6">➕ Nuevo Análisis</h2>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <!-- Personal Asignado Dropzone -->
@@ -98,6 +112,218 @@
                     <svg id="submit-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                     </svg>
+                    <span id="submit-text">Iniciar Análisis</span>
+                </button>
+                <span id="status-text" class="text-gray-500"></span>
+            </div>
+
+            <!-- Progress Section -->
+            <div id="progress-section" class="hidden mt-6">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-700">Procesando...</span>
+                    <span id="progress-percent" class="text-sm text-gray-500">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div id="progress-bar" class="progress-bar bg-blue-600 h-3 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="progress-status" class="text-sm text-gray-500 mt-2">Subiendo archivos...</p>
+            </div>
+
+            <!-- Result Section -->
+            <div id="result-section" class="hidden mt-6 p-4 rounded-lg">
+                <div id="result-success" class="hidden bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-green-800">¡Análisis completado!</p>
+                            <p class="text-sm text-green-600">El Excel comparativo está listo para descargar.</p>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-3">
+                        <a id="download-link" href="#" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition inline-flex items-center gap-2">
+                            📥 Descargar Excel
+                        </a>
+                        <a href="/dashboard/" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2">
+                            📊 Ver en Dashboard
+                        </a>
+                        <button onclick="resetForm()" class="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition">
+                            🔄 Nuevo Análisis
+                        </button>
+                    </div>
+                </div>
+                <div id="result-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <div>
+                            <p class="font-medium text-red-800">Error en el análisis</p>
+                            <p id="error-message" class="text-sm text-red-600"></p>
+                        </div>
+                    </div>
+                    <button onclick="resetForm()" class="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
+                        Intentar de nuevo
+                    </button>
+                </div>
+            </div>
+        </section>
+        {% else %}
+        <!-- Message for users without upload permission -->
+        <section class="bg-yellow-50 border border-yellow-200 rounded-xl p-8 mb-8">
+            <div class="flex items-center gap-4">
+                <svg class="w-12 h-12 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <div>
+                    <h3 class="font-medium text-yellow-800 text-lg">Acceso de solo lectura</h3>
+                    <p class="text-yellow-700">Tu rol de <strong>{{ permissions.role_display }}</strong> solo permite ver el historial de análisis. Contacta al administrador para obtener permisos de subida.</p>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <!-- Jobs History Section - Visible para todos -->
+        <section class="bg-white rounded-xl p-8">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="hud-title text-xl">📜 Historial de Análisis</h2>
+                <button onclick="refreshJobsList()" class="text-blue-600 hover:underline text-sm flex items-center gap-1">
+                    🔄 Actualizar
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full table-fixed-header">
+                    <thead>
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Periodo</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Creado por</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jobs-table">
+                        {% for job in recent_jobs %}
+                        <tr class="hover:bg-gray-50" data-job-id="{{ job.id }}">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ job.created_at|date:"d/m/Y H:i" }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {% if job.period_month %}{{ job.period_month|date:"F Y" }}{% else %}-{% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {% if job.created_by %}{{ job.created_by.username }}{% else %}-{% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if job.status == 'succeeded' %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">✓ Completado</span>
+                                {% elif job.status == 'failed' %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">✕ Error</span>
+                                {% elif job.status == 'running' %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800 animate-pulse-slow">⏳ Procesando</span>
+                                {% else %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">⏱ En cola</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <div class="flex items-center gap-3">
+                                    {% if job.status == 'succeeded' %}
+                                        {% if permissions.can_export %}
+                                        <a href="/api/v1/jobs/{{ job.id }}/excel/" class="text-blue-600 hover:underline" title="Descargar Excel">📥</a>
+                                        {% endif %}
+                                    {% elif job.status == 'failed' %}
+                                        <span class="text-red-500 text-xs cursor-help" title="{{ job.error_message }}">⚠️ Ver error</span>
+                                    {% else %}
+                                        <span class="text-gray-400">-</span>
+                                    {% endif %}
+                                    
+                                    {% if permissions.can_delete %}
+                                    <button onclick="deleteJob('{{ job.id }}')" class="text-red-500 hover:text-red-700" title="Eliminar">🗑️</button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                No hay análisis previos. {% if permissions.can_upload %}¡Sube tus archivos para comenzar!{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Quick Download Latest -->
+            {% if recent_jobs and permissions.can_export %}
+            <div class="mt-4 pt-4 border-t">
+                <a href="/api/v1/jobs/latest/download/?tenant=default" class="inline-flex items-center gap-2 text-blue-600 hover:underline font-medium">
+                    ⚡ Descargar último Excel exitoso
+                </a>
+            </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">⚠️ Confirmar eliminación</h3>
+            <p class="text-gray-600 mb-6">¿Estás seguro de eliminar este análisis? Esta acción no se puede deshacer.</p>
+            <div class="flex gap-3 justify-end">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+                <button id="confirm-delete-btn" onclick="confirmDelete()" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuración con permisos del usuario
+        const USER_PERMISSIONS = {
+            canUpload: {{ permissions.can_upload|yesno:"true,false" }},
+            canDelete: {{ permissions.can_delete|yesno:"true,false" }},
+            canExport: {{ permissions.can_export|yesno:"true,false" }},
+            canView: {{ permissions.can_view|yesno:"true,false" }},
+            role: "{{ permissions.role }}"
+        };
+
+        // CSRF token para requests seguros
+        function getCSRFToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                   getCookie('csrftoken');
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        // Estado
+        let filePA = null;
+        let fileSV = null;
+        let currentJobId = null;
+        let pollInterval = null;
+        let jobToDelete = null;
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            if (USER_PERMISSIONS.canUpload) {
+                setupDropzone('pa');
+                setupDropzone('sv');
+            }
+        });
                     <span id="submit-text">Iniciar Análisis</span>
                 </button>
                 <span id="status-text" class="text-gray-500"></span>
@@ -310,7 +536,7 @@
         // Actualizar botón submit
         function updateSubmitButton() {
             const btn = document.getElementById('submit-btn');
-            btn.disabled = !filePA || !fileSV;
+            if (btn) btn.disabled = !filePA || !fileSV;
         }
 
         // Formatear tamaño
@@ -320,70 +546,77 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
-        // Submit handler
-        document.getElementById('submit-btn').addEventListener('click', async () => {
-            if (!filePA || !fileSV) return;
+        // Submit handler (solo si tiene permiso)
+        if (USER_PERMISSIONS.canUpload) {
+            document.getElementById('submit-btn')?.addEventListener('click', async () => {
+                if (!filePA || !fileSV) return;
 
-            const btn = document.getElementById('submit-btn');
-            const progressSection = document.getElementById('progress-section');
-            const resultSection = document.getElementById('result-section');
+                const btn = document.getElementById('submit-btn');
+                const progressSection = document.getElementById('progress-section');
+                const resultSection = document.getElementById('result-section');
 
-            btn.disabled = true;
-            document.getElementById('submit-text').textContent = 'Procesando...';
-            progressSection.classList.remove('hidden');
-            resultSection.classList.add('hidden');
+                btn.disabled = true;
+                document.getElementById('submit-text').textContent = 'Procesando...';
+                progressSection.classList.remove('hidden');
+                resultSection.classList.add('hidden');
 
-            // Preparar FormData
-            const formData = new FormData();
-            formData.append('input_personal_asignado', filePA);
-            formData.append('input_servicio_vivo', fileSV);
-            
-            const periodMonth = document.getElementById('period-month').value;
-            if (periodMonth) {
-                formData.append('period_month', periodMonth);
-            }
-
-            try {
-                // Enviar archivos
-                updateProgress(10, 'Subiendo archivos...');
+                // Preparar FormData
+                const formData = new FormData();
+                formData.append('input_personal_asignado', filePA);
+                formData.append('input_servicio_vivo', fileSV);
                 
-                const response = await fetch('/api/v1/jobs/', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.detail || 'Error al crear el job');
+                const periodMonth = document.getElementById('period-month').value;
+                if (periodMonth) {
+                    formData.append('period_month', periodMonth);
                 }
 
-                const data = await response.json();
-                currentJobId = data.job_id;
-                
-                updateProgress(30, 'Archivos subidos. Procesando análisis...');
+                try {
+                    // Enviar archivos
+                    updateProgress(10, 'Subiendo archivos...');
+                    
+                    const response = await fetch('/api/v1/jobs/', {
+                        method: 'POST',
+                        body: formData,
+                        credentials: 'same-origin'  // Incluir cookies de sesión
+                    });
 
-                // Polling del estado
-                pollJobStatus();
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.detail || error.message || 'Error al crear el job');
+                    }
 
-            } catch (error) {
-                showError(error.message);
-            }
-        });
+                    const data = await response.json();
+                    currentJobId = data.job_id;
+                    
+                    updateProgress(30, 'Archivos subidos. Procesando análisis...');
+
+                    // Polling del estado
+                    pollJobStatus();
+
+                } catch (error) {
+                    showError(error.message);
+                }
+            });
+        }
 
         // Poll job status
         function pollJobStatus() {
             pollInterval = setInterval(async () => {
                 try {
-                    const response = await fetch(`/api/v1/jobs/${currentJobId}/status/`);
+                    const response = await fetch(`/api/v1/jobs/${currentJobId}/status/`, {
+                        credentials: 'same-origin'
+                    });
                     const data = await response.json();
 
                     if (data.status === 'succeeded') {
                         clearInterval(pollInterval);
                         updateProgress(100, '¡Completado!');
                         showSuccess();
+                        refreshJobsList();  // Actualizar lista
                     } else if (data.status === 'failed') {
                         clearInterval(pollInterval);
                         showError(data.error_message || 'Error desconocido');
+                        refreshJobsList();
                     } else if (data.status === 'running') {
                         updateProgress(60, 'Ejecutando análisis PA vs SV...');
                     } else {
@@ -435,6 +668,79 @@
             document.getElementById('submit-text').textContent = 'Iniciar Análisis';
             currentJobId = null;
             if (pollInterval) clearInterval(pollInterval);
+        }
+
+        // CRUD: Eliminar job
+        function deleteJob(jobId) {
+            if (!USER_PERMISSIONS.canDelete) {
+                alert('No tienes permisos para eliminar análisis');
+                return;
+            }
+            jobToDelete = jobId;
+            document.getElementById('delete-modal').classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('delete-modal').classList.add('hidden');
+            jobToDelete = null;
+        }
+
+        async function confirmDelete() {
+            if (!jobToDelete) return;
+            
+            try {
+                const response = await fetch(`/api/v1/jobs/${jobToDelete}/`, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Error al eliminar');
+                }
+
+                // Eliminar fila de la tabla
+                const row = document.querySelector(`tr[data-job-id="${jobToDelete}"]`);
+                if (row) row.remove();
+                
+                closeDeleteModal();
+                
+                // Mostrar notificación
+                showNotification('Job eliminado exitosamente', 'success');
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Refrescar lista de jobs
+        async function refreshJobsList() {
+            try {
+                const response = await fetch('/api/v1/jobs/?limit=10', {
+                    credentials: 'same-origin'
+                });
+                const data = await response.json();
+                
+                // Recargar página para simplicidad (se puede optimizar con renderizado dinámico)
+                window.location.reload();
+            } catch (error) {
+                console.error('Error refreshing jobs:', error);
+            }
+        }
+
+        // Notificación simple
+        function showNotification(message, type = 'info') {
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                info: 'bg-blue-500'
+            };
+            
+            const notification = document.createElement('div');
+            notification.className = `fixed bottom-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => notification.remove(), 3000);
         }
     </script>
 </body>

@@ -26,8 +26,19 @@ class Tenant(models.Model):
 
 
 class MembershipRole(models.TextChoices):
+    """
+    Roles disponibles para usuarios en un tenant.
+    
+    Permisos por rol:
+    - OWNER: Control total del tenant (gestión de usuarios, configuración, todo)
+    - ADMIN: Administración de usuarios y archivos (similar a owner pero sin eliminar tenant)
+    - COORDINATOR: Gestión de archivos Excel (subir, modificar, eliminar, exportar)
+    - ANALYST: Análisis de datos (ver dashboard, exportar reportes)
+    - VIEWER: Solo lectura (ver dashboard sin exportar)
+    """
     OWNER = "owner", "Owner"
     ADMIN = "admin", "Admin"
+    COORDINATOR = "coordinator", "Coordinador"
     ANALYST = "analyst", "Analyst"
     VIEWER = "viewer", "Viewer"
 
@@ -51,6 +62,16 @@ class Membership(models.Model):
     role = models.CharField(max_length=20, choices=MembershipRole.choices, default=MembershipRole.VIEWER)
     is_default = models.BooleanField(default=False, help_text="Tenant por defecto al iniciar sesión")
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Campos de auditoría
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invitations_sent",
+        help_text="Usuario que invitó a este miembro"
+    )
 
     class Meta:
         unique_together = [("user", "tenant")]
@@ -58,3 +79,34 @@ class Membership(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user.username} @ {self.tenant.name} ({self.role})"
+    
+    def can_upload_files(self) -> bool:
+        """Verifica si el usuario puede subir archivos."""
+        return self.role in [
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+            MembershipRole.COORDINATOR,
+        ]
+    
+    def can_delete_files(self) -> bool:
+        """Verifica si el usuario puede eliminar archivos."""
+        return self.role in [
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        ]
+    
+    def can_export_data(self) -> bool:
+        """Verifica si el usuario puede exportar datos."""
+        return self.role in [
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+            MembershipRole.COORDINATOR,
+            MembershipRole.ANALYST,
+        ]
+    
+    def can_manage_users(self) -> bool:
+        """Verifica si el usuario puede gestionar otros usuarios."""
+        return self.role in [
+            MembershipRole.OWNER,
+            MembershipRole.ADMIN,
+        ]

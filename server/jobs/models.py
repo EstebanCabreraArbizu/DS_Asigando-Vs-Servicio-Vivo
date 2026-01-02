@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+from django.conf import settings
 from django.db import models
 
 from tenants.models import Tenant
@@ -44,6 +45,16 @@ class AnalysisJob(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    # Usuario que creó el job (auditoría)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_jobs",
+        help_text="Usuario que creó este job"
+    )
 
     input_personal_asignado = models.FileField(upload_to=job_upload_path, max_length=500)
     input_servicio_vivo = models.FileField(upload_to=job_upload_path, max_length=500)

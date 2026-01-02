@@ -4,3 +4,21 @@ celery>=5.4,<5.5
 redis>=5.1,<6
 psycopg2-binary>=2.9,<3
 python-dotenv>=1.0,<2
+
+# JWT Authentication
+djangorestframework-simplejwt>=5.3,<6
+
+# CORS Headers
+django-cors-headers>=4.3,<5
+
+# S3/MinIO Storage
+django-storages[s3]>=1.14,<2
+boto3>=1.34,<2
+
+# Security
+argon2-cffi>=23.1,<24
+
+# Data Processing (moved from root requirements)
+polars>=1.0,<2
+openpyxl>=3.1,<4
+xlsxwriter>=3.2,<4
