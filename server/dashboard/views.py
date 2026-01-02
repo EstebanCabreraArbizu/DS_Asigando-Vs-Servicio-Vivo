@@ -1,6 +1,9 @@
 """
 Dashboard Views - Vistas para el dashboard de métricas PA vs SV.
 """
+from io import BytesIO
+
+from django.conf import settings
 from django.db.models import Sum, Count, Avg
 from django.http import JsonResponse
 from django.views import View
@@ -11,6 +14,30 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 
 from jobs.models import AnalysisJob, AnalysisSnapshot, JobStatus, Artifact, ArtifactKind
 from tenants.models import Tenant, Membership, MembershipRole
+
+
+def read_file_to_buffer(file_field) -> BytesIO:
+    """
+    Lee un FileField a un buffer BytesIO, compatible con S3 y almacenamiento local.
+    
+    Cuando se usa S3 storage, los archivos no tienen .path disponible.
+    Esta función lee el contenido del archivo desde cualquier backend.
+    
+    Args:
+        file_field: Django FileField (ej: artifact.file)
+        
+    Returns:
+        BytesIO con el contenido del archivo
+    """
+    buffer = BytesIO()
+    try:
+        # Intentar abrir y leer el archivo
+        with file_field.open('rb') as f:
+            buffer.write(f.read())
+        buffer.seek(0)
+    except Exception as e:
+        raise IOError(f"Error al leer archivo: {e}")
+    return buffer
 
 
 def get_user_permissions(user):
@@ -289,7 +316,9 @@ class MetricsAPIView(View):
             return {}
         
         try:
-            df = pl.read_parquet(artifact.file.path)
+            # Leer desde buffer para compatibilidad con S3
+            file_buffer = read_file_to_buffer(artifact.file)
+            df = pl.read_parquet(file_buffer)
             
             # Aplicar filtros
             if filters.get("macrozona"):
@@ -679,7 +708,9 @@ class DetailsAPIView(View):
             return JsonResponse({"error": "No hay datos de análisis"}, status=404)
         
         try:
-            df = pl.read_parquet(artifact.file.path)
+            # Leer desde buffer para compatibilidad con S3
+            file_buffer = read_file_to_buffer(artifact.file)
+            df = pl.read_parquet(file_buffer)
             
             # Agregar filtros globales desde request
             global_filters = {
@@ -822,7 +853,9 @@ class ClientsAPIView(View):
             return JsonResponse({"error": "No hay datos de análisis"}, status=404)
         
         try:
-            df = pl.read_parquet(artifact.file.path)
+            # Leer desde buffer para compatibilidad con S3
+            file_buffer = read_file_to_buffer(artifact.file)
+            df = pl.read_parquet(file_buffer)
             
             # Agregar filtros globales desde request
             global_filters = {
@@ -986,7 +1019,9 @@ class UnitsAPIView(View):
             return JsonResponse({"error": "No hay datos de análisis"}, status=404)
         
         try:
-            df = pl.read_parquet(artifact.file.path)
+            # Leer desde buffer para compatibilidad con S3
+            file_buffer = read_file_to_buffer(artifact.file)
+            df = pl.read_parquet(file_buffer)
             
             # Agregar filtros globales desde request
             global_filters = {
@@ -1150,7 +1185,9 @@ class ServicesAPIView(View):
             return JsonResponse({"error": "No hay datos de análisis"}, status=404)
         
         try:
-            df = pl.read_parquet(artifact.file.path)
+            # Leer desde buffer para compatibilidad con S3
+            file_buffer = read_file_to_buffer(artifact.file)
+            df = pl.read_parquet(file_buffer)
             
             # Agregar filtros globales desde request
             global_filters = {
