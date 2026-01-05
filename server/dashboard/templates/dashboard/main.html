@@ -165,14 +165,28 @@
                         class="bg-white/20 text-white px-3 py-1.5 rounded text-sm hover:bg-white/30 transition">
                         📊 Comparar
                     </button>
-                    <a href="/dashboard/upload/"
+                    <a href="{% url 'dashboard:upload' %}"
                         class="bg-green-500 text-white px-3 py-1.5 rounded text-sm hover:bg-green-600 transition">
                         📤 Subir
                     </a>
-                    <a href="/api/v1/jobs/latest/download/?tenant=default"
+                    <a href="{% url 'jobs:job_latest_download' %}?tenant=default"
                         class="bg-orange-500 text-white px-3 py-1.5 rounded text-sm hover:bg-orange-600 transition">
                         📥 Excel
                     </a>
+                    <div class="h-8 w-px bg-blue-500/50 mx-1"></div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right text-xs hidden sm:block">
+                            <p class="font-medium text-blue-50">{{ user.username }}</p>
+                            <p class="text-blue-200">{{ permissions.role_display }}</p>
+                        </div>
+                        <form id="logout-form" action="{% url 'admin:logout' %}" method="post" class="hidden">
+                            {% csrf_token %}
+                        </form>
+                        <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
+                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm transition">
+                            Salir
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -628,7 +642,7 @@
         let sortOrder = 'desc';
         let metricsData = null;
         let chartsInstances = {};
-        
+
         // Estado de paginación para tablas
         let clientPage = 1;
         let unitPage = 1;
@@ -682,16 +696,16 @@
                     color: #f3f7ff !important;
                 }
             `;
-            
+
             // Remove existing style if present
             const existingStyle = document.getElementById('table-header-overrides');
             if (existingStyle) {
                 existingStyle.remove();
             }
-            
+
             // Add new style
             document.head.appendChild(style);
-            
+
             // Also directly apply styles to existing table headers
             document.querySelectorAll('table thead th').forEach(th => {
                 th.style.color = '#f3f7ff';
@@ -703,7 +717,7 @@
                 th.style.textTransform = 'uppercase';
                 th.style.fontSize = '0.85rem';
             });
-            
+
             // Apply to thead containers
             document.querySelectorAll('table thead').forEach(thead => {
                 thead.style.backgroundColor = '#0a0f1f';
@@ -718,14 +732,14 @@
                 const href = link.href;
                 link.href = href + '&t=' + Date.now();
             });
-            
+
             // Enforce table header styles immediately
             enforceTableHeaderStyles();
-            
+
             setupTabs();
             setupEventListeners();
             await loadPeriods();
-            
+
             // Re-enforce styles after initial load
             setTimeout(enforceTableHeaderStyles, 100);
         });
@@ -758,7 +772,7 @@
                     if (btn.dataset.tab === 'servicios' && metricsData) {
                         loadServiceData();
                     }
-                    
+
                     // Re-enforce table header styles after tab switch
                     setTimeout(enforceTableHeaderStyles, 50);
                 });
@@ -834,7 +848,7 @@
                 updateFilters(metricsData.filtros_disponibles);
                 renderAllCharts(metricsData);
                 updateTables(metricsData.charts);
-                
+
                 // Recargar datos paginados si estamos en esas pestañas
                 const activeTab = document.querySelector('.tab-btn.tab-active');
                 if (activeTab) {
@@ -903,11 +917,20 @@
             chartsInstances.estado = echarts.init(document.getElementById('chart-estado'));
             if (charts.by_estado?.length > 0) {
                 chartsInstances.estado.setOption({
-                    tooltip: { trigger: 'axis' },
-                    legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: '#fff', fontSize: 10 }  },
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: function (params) {
+                            let res = `<strong>${params[0].name}</strong><br/>`;
+                            params.forEach(p => {
+                                res += `${p.marker} ${p.seriesName}: <b>${formatNumber(p.value)}</b><br/>`;
+                            });
+                            return res;
+                        }
+                    },
+                    legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: '#fff', fontSize: 10 } },
                     grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
                     xAxis: { type: 'category', data: charts.by_estado.map(d => d.Estado || 'N/A'), axisLabel: { rotate: 30, fontSize: 10, color: '#fff' } },
-                    yAxis: { type: 'value', axisLabel: { color: '#fff' } },
+                    yAxis: { type: 'value', axisLabel: { color: '#fff' }, splitLine: { lineStyle: { opacity: 0.1 } } },
                     series: [
                         {
                             name: 'PA',
@@ -918,7 +941,8 @@
                                 show: true,
                                 position: 'top',
                                 color: '#ff133f',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                formatter: (p) => formatNumber(p.value)
                             }
                         },
                         {
@@ -930,7 +954,8 @@
                                 show: true,
                                 position: 'top',
                                 color: '#00cfdc',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                formatter: (p) => formatNumber(p.value)
                             }
                         }
                     ]
@@ -941,10 +966,19 @@
             chartsInstances.clientes = echarts.init(document.getElementById('chart-clientes'));
             if (charts.by_cliente_top10?.length > 0) {
                 chartsInstances.clientes.setOption({
-                    tooltip: { trigger: 'axis' },
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: function (params) {
+                            let res = `<strong>${params[0].name}</strong><br/>`;
+                            params.forEach(p => {
+                                res += `${p.marker} ${p.seriesName}: <b>${formatNumber(p.value)}</b><br/>`;
+                            });
+                            return res;
+                        }
+                    },
                     legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: '#fff', fontSize: 10 } },
                     grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
-                    xAxis: { type: 'value', axisLabel: { color: '#fff' } },
+                    xAxis: { type: 'value', axisLabel: { color: '#fff' }, splitLine: { lineStyle: { opacity: 0.1 } } },
                     yAxis: { type: 'category', data: charts.by_cliente_top10.map(d => (d.nombre || '').substring(0, 25)), inverse: true, axisLabel: { fontSize: 10, color: '#fff' } },
                     series: [
                         {
@@ -956,7 +990,8 @@
                                 show: true,
                                 position: 'right',
                                 color: '#ff133f',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                formatter: (p) => formatNumber(p.value)
                             }
                         },
                         {
@@ -968,7 +1003,8 @@
                                 show: true,
                                 position: 'right',
                                 color: '#00cfdc',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                formatter: (p) => formatNumber(p.value)
                             }
                         }
                     ]
@@ -979,7 +1015,16 @@
             chartsInstances.zona = echarts.init(document.getElementById('chart-zona'));
             if (charts.by_zona?.length > 0) {
                 chartsInstances.zona.setOption({
-                    tooltip: { trigger: 'axis' },
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: function (params) {
+                            let res = `<strong>${params[0].name}</strong><br/>`;
+                            params.forEach(p => {
+                                res += `${p.marker} ${p.seriesName}: <b>${formatNumber(p.value)}</b><br/>`;
+                            });
+                            return res;
+                        }
+                    },
                     legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: '#fff', fontSize: 10 } },
                     grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
                     xAxis: {
@@ -989,7 +1034,7 @@
                             color: '#fff'
                         }
                     },
-                    yAxis: { type: 'value', axisLabel: { color: '#fff' } },
+                    yAxis: { type: 'value', axisLabel: { color: '#fff' }, splitLine: { lineStyle: { opacity: 0.1 } } },
                     series: [
                         {
                             name: 'PA',
@@ -1000,7 +1045,8 @@
                                 show: true,
                                 position: 'top',
                                 color: '#ff2a57',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                formatter: (p) => formatNumber(p.value)
                             }
                         },
                         {
@@ -1012,7 +1058,8 @@
                                 show: true,
                                 position: 'top',
                                 color: '#00cfdc',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                formatter: (p) => formatNumber(p.value)
                             }
                         }
                     ]
@@ -1025,7 +1072,13 @@
             chartsInstances.macrozona = echarts.init(document.getElementById('chart-macrozona'));
             if (charts.by_macrozona?.length > 0) {
                 chartsInstances.macrozona.setOption({
-                    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: function (params) {
+                            let val = typeof params.value === 'number' ? params.value.toFixed(2) : params.value;
+                            return `${params.name}: ${val} (${params.percent}%)`;
+                        }
+                    },
                     legend: {
                         orient: 'vertical',
                         left: 'left',
@@ -1050,14 +1103,18 @@
             // Gráfico Donut PA vs SV
             chartsInstances.donut = echarts.init(document.getElementById('chart-donut'));
             chartsInstances.donut.setOption({
-                tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function (params) {
+                        return `${params.name}: <b>${formatNumber(params.value)}</b> (${params.percent}%)`;
+                    }
+                },
                 legend: { bottom: 0, textStyle: { color: '#fff', fontSize: 10 } },
                 series: [{
                     type: 'pie',
                     radius: ['40%', '70%'],
                     avoidLabelOverlap: false,
-                    //itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
-                    label: { show: true, formatter: '{b}\n{c} ({d}%)', color: '#fff', fontWeight: 700 },
+                    label: { show: true, formatter: (p) => `${p.name}\n${formatNumber(p.value)} (${p.percent}%)`, color: '#fff', fontWeight: 700 },
                     data: [
                         { value: kpis.total_personal_asignado, name: 'Personal Asignado', itemStyle: { color: '#ff133f' } },
                         { value: kpis.total_servicio_vivo, name: 'Servicio Vivo', itemStyle: { color: '#00cfdc' } }
@@ -1070,9 +1127,18 @@
             if (charts.by_grupo?.length > 0) {
                 const grupoKey = Object.keys(charts.by_grupo[0]).find(k => k.includes('Grupo'));
                 chartsInstances.grupo.setOption({
-                    tooltip: { trigger: 'axis' },
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: function (params) {
+                            let res = `<strong>${params[0].name}</strong><br/>`;
+                            params.forEach(p => {
+                                res += `${p.marker} ${p.seriesName}: <b>${formatNumber(p.value)}</b><br/>`;
+                            });
+                            return res;
+                        }
+                    },
                     grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
-                    xAxis: { type: 'value', axisLabel: { color: '#fff'} },
+                    xAxis: { type: 'value', axisLabel: { color: '#fff' }, splitLine: { lineStyle: { opacity: 0.1 } } },
                     yAxis: { type: 'category', data: charts.by_grupo.map(d => (d[grupoKey] || '').substring(0, 20)), inverse: true, axisLabel: { color: '#fff', fontSize: 10 } },
                     series: [
                         {
@@ -1085,7 +1151,8 @@
                                 show: true,
                                 position: 'right',
                                 color: '#ff133f',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                formatter: (p) => formatNumber(p.value)
                             }
                         },
                         {
@@ -1098,7 +1165,8 @@
                                 show: true,
                                 position: 'right',
                                 color: '#00cfdc',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                formatter: (p) => formatNumber(p.value)
                             }
                         }
 
@@ -1110,11 +1178,20 @@
             chartsInstances.unidadesBar = echarts.init(document.getElementById('chart-unidades-bar'));
             if (charts.by_unidad_top10?.length > 0) {
                 chartsInstances.unidadesBar.setOption({
-                    tooltip: { trigger: 'axis' },
+                    tooltip: {
+                        trigger: 'axis',
+                        formatter: function (params) {
+                            let res = `<strong>${params[0].name}</strong><br/>`;
+                            params.forEach(p => {
+                                res += `${p.marker} ${p.seriesName}: <b>${formatNumber(p.value)}</b><br/>`;
+                            });
+                            return res;
+                        }
+                    },
                     legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: '#fff', fontSize: 10 } },
                     grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
                     xAxis: { type: 'category', data: charts.by_unidad_top10.map(d => (d.nombre || d.Unidad_Str || '').substring(0, 20)), axisLabel: { rotate: 45, fontSize: 10, color: '#fff' } },
-                    yAxis: { type: 'value', axisLabel: { color: '#fff' } },
+                    yAxis: { type: 'value', axisLabel: { color: '#fff' }, splitLine: { lineStyle: { opacity: 0.1 } } },
                     series: [
                         {
                             name: 'PA',
@@ -1125,7 +1202,8 @@
                                 show: true,
                                 position: 'top',
                                 color: '#ff133f',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                formatter: (p) => formatNumber(p.value)
                             }
                         },
                         {
@@ -1137,7 +1215,8 @@
                                 show: true,
                                 position: 'top',
                                 color: '#00cfdc',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                formatter: (p) => formatNumber(p.value)
                             }
                         }
                     ]
@@ -1193,7 +1272,7 @@
             }).join('');
 
             updateClientTotals(data.data);
-            
+
             // Enforce table header styles after rendering
             setTimeout(enforceTableHeaderStyles, 10);
         }
@@ -1212,8 +1291,8 @@
             document.getElementById('total-pa-cli').textContent = formatNumber(totalPa);
             document.getElementById('total-sv-cli').textContent = formatNumber(totalSv);
             document.getElementById('total-diff-cli').textContent = formatNumber(totalDiff);
-            document.getElementById('total-cob-cli').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
-            document.getElementById('total-pct-cli').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
+            document.getElementById('total-cob-cli').textContent = totalSv > 0 ? (totalPa / totalSv * 100).toFixed(2) + '%' : '-';
+            document.getElementById('total-pct-cli').textContent = totalSv > 0 ? (totalDiff / totalSv * 100).toFixed(2) + '%' : '-';
         }
 
         function updateClientPagination(data) {
@@ -1256,8 +1335,8 @@
                 const pa = row.pa || 0;
                 const sv = row.sv || 0;
                 const diff = row.diferencia || (pa - sv);
-                const cob = sv > 0 ? ((pa / sv) * 100).toFixed(2) : 'Infinito';
-                const pct = sv > 0 ? ((diff / sv) * 100).toFixed(2) : 'Infinito';
+                const cob = sv > 0 ? (pa / sv * 100).toFixed(2) : 'Infinito';
+                const pct = sv > 0 ? (diff / sv * 100).toFixed(2) : 'Infinito';
                 const estado = getEstadoFromDiff(pa, sv);
                 return `<tr class="hover:bg-gray-50">
                     <td class="px-4 py-2 text-sm">${row.nombre || row.Unidad_Str || '-'}</td>
@@ -1271,7 +1350,7 @@
             }).join('');
 
             updateUnitTotals(data.data);
-            
+
             // Enforce table header styles after rendering
             setTimeout(enforceTableHeaderStyles, 10);
         }
@@ -1290,8 +1369,8 @@
             document.getElementById('total-pa-uni').textContent = formatNumber(totalPa);
             document.getElementById('total-sv-uni').textContent = formatNumber(totalSv);
             document.getElementById('total-diff-uni').textContent = formatNumber(totalDiff);
-            document.getElementById('total-cob-uni').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
-            document.getElementById('total-pct-uni').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
+            document.getElementById('total-cob-uni').textContent = totalSv > 0 ? (totalPa / totalSv * 100).toFixed(2) + '%' : '-';
+            document.getElementById('total-pct-uni').textContent = totalSv > 0 ? (totalDiff / totalSv * 100).toFixed(2) + '%' : '-';
         }
 
         function updateUnitPagination(data) {
@@ -1349,7 +1428,7 @@
             }).join('');
 
             updateServiceTotals(data.data);
-            
+
             // Enforce table header styles after rendering
             setTimeout(enforceTableHeaderStyles, 10);
         }
@@ -1368,8 +1447,8 @@
             document.getElementById('total-pa-srv').textContent = formatNumber(totalPa);
             document.getElementById('total-sv-srv').textContent = formatNumber(totalSv);
             document.getElementById('total-diff-srv').textContent = formatNumber(totalDiff);
-            document.getElementById('total-cob-srv').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
-            document.getElementById('total-pct-srv').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
+            document.getElementById('total-cob-srv').textContent = totalSv > 0 ? (totalPa / totalSv * 100).toFixed(2) + '%' : '-';
+            document.getElementById('total-pct-srv').textContent = totalSv > 0 ? (totalDiff / totalSv * 100).toFixed(2) + '%' : '-';
         }
 
         function updateServicePagination(data) {
@@ -1388,7 +1467,7 @@
         // ===== FUNCIÓN AUXILIAR PARA CONSTRUIR URLs CON FILTROS GLOBALES =====
         async function buildApiUrl(baseUrl) {
             const params = new URLSearchParams();
-            
+
             // Agregar filtros globales
             const macrozona = document.getElementById('filter-macrozona').value;
             const zona = document.getElementById('filter-zona').value;
@@ -1403,7 +1482,7 @@
             if (grupo) params.append('grupo', grupo);
             if (sector) params.append('sector', sector);
             if (gerente) params.append('gerente', gerente);
-            
+
             const queryString = params.toString();
             return queryString ? `${baseUrl}&${queryString}` : baseUrl;
         }
@@ -1516,7 +1595,7 @@
                 document.getElementById('total-cob-srv').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
                 document.getElementById('total-pct-srv').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
             }
-            
+
             // Enforce table header styles after rendering
             setTimeout(enforceTableHeaderStyles, 10);
         }
@@ -1524,7 +1603,7 @@
         // Listeners para inputs de búsqueda con debounce
         document.addEventListener('DOMContentLoaded', () => {
             let searchTimeout;
-            
+
             const searchCliente = document.getElementById('search-cliente');
             if (searchCliente) {
                 searchCliente.addEventListener('input', () => {
@@ -1535,7 +1614,7 @@
                     }, 300);
                 });
             }
-            
+
             const searchUnidad = document.getElementById('search-unidad');
             if (searchUnidad) {
                 searchUnidad.addEventListener('input', () => {
@@ -1546,7 +1625,7 @@
                     }, 300);
                 });
             }
-            
+
             const searchServicio = document.getElementById('search-servicio');
             if (searchServicio) {
                 searchServicio.addEventListener('input', () => {
@@ -1584,18 +1663,18 @@
             }
 
             tbody.innerHTML = data.data.map(row => {
-                const diff = (row.Personal_Real || 0) - (row.Personal_Estimado || 0);
+                const diff = row.Personal_Estimado - row.Personal_Real;
                 return `<tr class="hover:bg-gray-50">
                     <td class="px-3 py-2 truncate max-w-[200px]">${row.Cliente_Final || '-'}</td>
                     <td class="px-3 py-2 truncate max-w-[150px]">${row.Unidad_Str || '-'}</td>
                     <td class="px-3 py-2 truncate max-w-[150px]">${row.Servicio_Limpio || '-'}</td>
-                    <td class="px-3 py-2 text-right font-medium text-blue-600">${row.Personal_Real || 0}</td>
-                    <td class="px-3 py-2 text-right font-medium text-green-600">${row.Personal_Estimado || 0}</td>
-                    <td class="px-3 py-2 text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${diff}</td>
+                    <td class="px-3 py-2 text-right font-medium text-blue-600">${formatNumber(row.Personal_Real || 0)}</td>
+                    <td class="px-3 py-2 text-right font-medium text-green-600">${formatNumber(row.Personal_Estimado || 0)}</td>
+                    <td class="px-3 py-2 text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
                     <td class="px-3 py-2 text-center"><span class="status-badge estado-${row.Estado}">${row.Estado || '-'}</span></td>
                 </tr>`;
             }).join('');
-            
+
             // Enforce table header styles after rendering
             setTimeout(enforceTableHeaderStyles, 10);
         }
@@ -1645,41 +1724,41 @@
             // Paginación Detalle
             document.getElementById('prev-page').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadTableData(); } });
             document.getElementById('next-page').addEventListener('click', () => { currentPage++; loadTableData(); });
-            
+
             // Paginación Clientes
-            document.getElementById('prev-page-clientes').addEventListener('click', () => { 
-                if (clientPage > 1) { 
-                    clientPage--; 
-                    loadClientData(); 
-                } 
+            document.getElementById('prev-page-clientes').addEventListener('click', () => {
+                if (clientPage > 1) {
+                    clientPage--;
+                    loadClientData();
+                }
             });
-            document.getElementById('next-page-clientes').addEventListener('click', () => { 
-                clientPage++; 
-                loadClientData(); 
+            document.getElementById('next-page-clientes').addEventListener('click', () => {
+                clientPage++;
+                loadClientData();
             });
-            
+
             // Paginación Unidades
-            document.getElementById('prev-page-unidades').addEventListener('click', () => { 
-                if (unitPage > 1) { 
-                    unitPage--; 
-                    loadUnitData(); 
-                } 
+            document.getElementById('prev-page-unidades').addEventListener('click', () => {
+                if (unitPage > 1) {
+                    unitPage--;
+                    loadUnitData();
+                }
             });
-            document.getElementById('next-page-unidades').addEventListener('click', () => { 
-                unitPage++; 
-                loadUnitData(); 
+            document.getElementById('next-page-unidades').addEventListener('click', () => {
+                unitPage++;
+                loadUnitData();
             });
-            
+
             // Paginación Servicios
-            document.getElementById('prev-page-servicios').addEventListener('click', () => { 
-                if (servicePage > 1) { 
-                    servicePage--; 
-                    loadServiceData(); 
-                } 
+            document.getElementById('prev-page-servicios').addEventListener('click', () => {
+                if (servicePage > 1) {
+                    servicePage--;
+                    loadServiceData();
+                }
             });
-            document.getElementById('next-page-servicios').addEventListener('click', () => { 
-                servicePage++; 
-                loadServiceData(); 
+            document.getElementById('next-page-servicios').addEventListener('click', () => {
+                servicePage++;
+                loadServiceData();
             });
 
             // Modal comparación
@@ -1699,7 +1778,7 @@
                 servicePage = 1;
                 currentPage = 1;
                 loadMetrics(currentPeriod);  // Recargar sin filtros
-                
+
                 // Si estamos en el tab de detalle, recargar tabla de detalle
                 const activeTab = document.querySelector('.tab-btn.tab-active');
                 if (activeTab && activeTab.dataset.tab === 'detalle') {
@@ -1716,7 +1795,7 @@
                     unitPage = 1;
                     servicePage = 1;
                     currentPage = 1;
-                    
+
                     // Si estamos en el tab de detalle, recargar tabla de detalle
                     const activeTab = document.querySelector('.tab-btn.tab-active');
                     if (activeTab && activeTab.dataset.tab === 'detalle') {
@@ -1728,8 +1807,23 @@
 
         // ===== COMPARACIÓN =====
         async function runComparison() {
-            const p1 = document.getElementById('compare-period1').value;
             const p2 = document.getElementById('compare-period2').value;
+
+            // Función para formatear fechas en español
+            const formatDateSpanish = (dateStr) => {
+                if (!dateStr) return dateStr;
+                try {
+                    // Intentar detectar si es una fecha (ej: 2024-12-31)
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                        const [y, m, d] = dateStr.split('-');
+                        const date = new Date(y, m - 1, d);
+                        return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(date);
+                    }
+                    return dateStr;
+                } catch (e) {
+                    return dateStr;
+                }
+            };
 
             try {
                 const response = await fetch(`/dashboard/api/compare/?tenant=default&period1=${p1}&period2=${p2}`);
@@ -1757,9 +1851,30 @@
         }
 
         // ===== UTILIDADES =====
+        const formatDateSpanish = (dateStr) => {
+            if (!dateStr) return dateStr;
+            try {
+                // Si es un string de fecha ISO (YYYY-MM-DD)
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    const [y, m, d] = dateStr.split('-');
+                    const date = new Date(y, m - 1, d);
+                    return new Intl.DateTimeFormat('es-ES', { month: 'long', year: 'numeric' }).format(date);
+                }
+                return dateStr;
+            } catch (e) {
+                return dateStr;
+            }
+        };
+
         function showLoading(show) { document.getElementById('loading').classList.toggle('hidden', !show); }
         function showNoData() { document.querySelectorAll('[id^="kpi-"]').forEach(el => el.textContent = '--'); }
-        function formatNumber(n) { return n == null ? '-' : new Intl.NumberFormat('es-PE').format(n); }
+        function formatNumber(n) {
+            if (n == null) return '-';
+            return new Intl.NumberFormat('es-PE', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(n);
+        }
         function formatMetricName(key) {
             const names = { 'total_personal_asignado': 'Personal Asignado', 'total_servicio_vivo': 'Servicio Vivo', 'coincidencias': 'Coincidencias', 'diferencia_total': 'Diferencia', 'cobertura_porcentaje': 'Cobertura %' };
             return names[key] || key;

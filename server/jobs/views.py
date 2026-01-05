@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
@@ -276,20 +276,34 @@ class JobDownloadExcelView(APIView):
         period_str = job.period_month.strftime("%Y-%m") if job.period_month else job.created_at.strftime("%Y%m%d")
         filename = f"PA_vs_SV_{period_str}.xlsx"
         
-        # Intentar usar URL prefirmada si es S3
+        # Proxy download: Django actúa como intermediario (más seguro)
         storage = get_storage_service()
         if storage.use_s3:
             try:
-                presigned_url = storage.get_presigned_url(
-                    artifact.file.name,
-                    bucket_type="artifacts",
-                    expires_in=3600,
-                    response_filename=filename,
-                    response_content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                # Obtener archivo desde MinIO y transmitirlo al usuario
+                s3_response = storage.s3_client.get_object(
+                    Bucket=storage.buckets.get("artifacts"),
+                    Key=artifact.file.name
                 )
-                return Response({"download_url": presigned_url, "filename": filename})
-            except StorageException:
-                pass  # Fallback to direct download
+                
+                def file_iterator(body, chunk_size=8192):
+                    """Generador que lee el archivo en chunks para no consumir memoria."""
+                    for chunk in iter(lambda: body.read(chunk_size), b''):
+                        yield chunk
+                
+                response = StreamingHttpResponse(
+                    file_iterator(s3_response['Body']),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                
+                # Log de auditoría
+                logger.info(f"Excel downloaded: job={job_id}, user={request.user.username}, file={filename}")
+                
+                return response
+            except Exception as e:
+                logger.error(f"Error streaming from S3: {e}")
+                # Fallback to FileResponse if S3 streaming fails
         
         # Descarga directa para storage local
         response = FileResponse(
@@ -333,19 +347,34 @@ class JobLatestDownloadView(APIView):
         period_str = job.period_month.strftime("%Y-%m") if job.period_month else job.created_at.strftime("%Y%m%d")
         filename = f"PA_vs_SV_{period_str}.xlsx"
         
-        # Intentar URL prefirmada si es S3
+        # Proxy download: Django actúa como intermediario (más seguro)
         storage = get_storage_service()
         if storage.use_s3:
             try:
-                presigned_url = storage.get_presigned_url(
-                    artifact.file.name,
-                    bucket_type="artifacts",
-                    expires_in=3600,
-                    response_filename=filename,
+                # Obtener archivo desde MinIO y transmitirlo al usuario
+                s3_response = storage.s3_client.get_object(
+                    Bucket=storage.buckets.get("artifacts"),
+                    Key=artifact.file.name
                 )
-                return Response({"download_url": presigned_url, "filename": filename})
-            except StorageException:
-                pass
+                
+                def file_iterator(body, chunk_size=8192):
+                    """Generador que lee el archivo en chunks para no consumir memoria."""
+                    for chunk in iter(lambda: body.read(chunk_size), b''):
+                        yield chunk
+                
+                response = StreamingHttpResponse(
+                    file_iterator(s3_response['Body']),
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                )
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+                
+                # Log de auditoría
+                logger.info(f"Excel downloaded (latest): user={request.user.username}, file={filename}")
+                
+                return response
+            except Exception as e:
+                logger.error(f"Error streaming from S3: {e}")
+                # Fallback to FileResponse if S3 streaming fails
         
         response = FileResponse(
             artifact.file.open("rb"), 

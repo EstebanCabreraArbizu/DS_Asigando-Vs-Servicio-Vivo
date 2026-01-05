@@ -16,6 +16,27 @@ from jobs.models import AnalysisJob, AnalysisSnapshot, JobStatus, Artifact, Arti
 from tenants.models import Tenant, Membership, MembershipRole
 
 
+# Diccionario de meses en español para formateo de fechas
+MESES_ES = {
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+    5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+    9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+}
+
+
+def format_period_spanish(date):
+    """
+    Formatea una fecha como 'Enero 2026' en español.
+    
+    Args:
+        date: objeto date o datetime con month y year
+        
+    Returns:
+        str: fecha formateada en español, ej: 'Enero 2026'
+    """
+    return f"{MESES_ES[date.month]} {date.year}"
+
+
 def read_file_to_buffer(file_field) -> BytesIO:
     """
     Lee un FileField a un buffer BytesIO, compatible con S3 y almacenamiento local.
@@ -178,7 +199,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         periods = [
             {
                 "value": s.period_month.strftime("%Y-%m"),
-                "label": s.period_month.strftime("%B %Y")
+                "label": format_period_spanish(s.period_month)
             }
             for s in snapshots
         ]
@@ -198,7 +219,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
                         seen.add(period_str)
                         periods.append({
                             "value": period_str,
-                            "label": job.period_month.strftime("%B %Y")
+                            "label": format_period_spanish(job.period_month)
                         })
         
         context["tenant"] = tenant
@@ -581,14 +602,14 @@ class PeriodsAPIView(View):
                     seen.add(period_str)
                     periods.append({
                         "value": period_str,
-                        "label": job.period_month.strftime("%B %Y") if job.period_month else job.created_at.strftime("%B %Y"),
+                        "label": format_period_spanish(job.period_month) if job.period_month else format_period_spanish(job.created_at),
                         "job_id": str(job.id)
                     })
         else:
             periods = [
                 {
                     "value": s.period_month.strftime("%Y-%m"),
-                    "label": s.period_month.strftime("%B %Y"),
+                    "label": format_period_spanish(s.period_month),
                     "job_id": str(s.job_id)
                 }
                 for s in snapshots

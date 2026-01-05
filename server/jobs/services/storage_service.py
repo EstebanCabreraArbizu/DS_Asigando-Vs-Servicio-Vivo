@@ -258,6 +258,15 @@ class StorageService:
                 Params={k: v for k, v in params.items() if v is not None},
                 ExpiresIn=expires_in,
             )
+            
+            # Si se definió una URL pública diferente a la interna (ej: localhost vs minio en docker)
+            # Reemplazar la base de la URL
+            public_url = getattr(settings, "AWS_S3_PUBLIC_URL", None)
+            internal_url = getattr(settings, "AWS_S3_ENDPOINT_URL", None)
+            
+            if public_url and internal_url and public_url != internal_url:
+                url = url.replace(internal_url, public_url)
+                
             return url
         except Exception as e:
             logger.error(f"Error generating presigned URL for {path}: {e}")
