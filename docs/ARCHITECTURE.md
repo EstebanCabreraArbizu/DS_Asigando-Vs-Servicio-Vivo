@@ -6,11 +6,27 @@ Este documento describe la arquitectura técnica, flujos de datos y comportamien
 
 ## 📐 Diagrama de Arquitectura General
 
+```mermaid
+graph TD
+    User((Users)) -->|HTTPS| Frontend[Frontend SPA]
+    Frontend -->|JSON/API| API[Django API]
+
+    subgraph "Backend Services"
+        API -->|Read/Write| DB[(PostgreSQL)]
+        API -->|Enqueue Tasks| Redis[(Redis Broker)]
+        API -->|Upload/Download| MinIO[(MinIO S3)]
+        
+        Celery[Celery Worker] -->|Consume Tasks| Redis
+        Celery -->|Process Data| PolarsEngine[Polars Engine]
+        Celery -->|Fetch Inputs/Store Artifacts| MinIO
+        Celery -->|Update Status/Metrics| DB
+    end
+
+    subgraph "Storage Layer"
+        DB
+        MinIO
+    end
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                                   USUARIOS                                       │
-│                    👤 Analistas    👤 Gerentes    👤 Supervisores                │
-└─────────────────────────────────────┬───────────────────────────────────────────┘
                                       │ HTTPS
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -134,10 +150,36 @@ Este documento describe la arquitectura técnica, flujos de datos y comportamien
 
 ### 1. Flujo de Upload y Procesamiento
 
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant FE as Frontend
+    participant API as Django API
+    participant M as MinIO (S3)
+    participant R as Redis
+    participant W as Celery Worker
+    participant DB as PostgreSQL
+
+    U->>FE: Select Files (PA, SV) & Period
+    FE->>API: POST /api/v1/jobs/ (FormData)
+    API->>M: Upload PA.xlsx & SV.xlsx (Input Bucket)
+    API->>DB: Create Job (Status: CURRENT)
+    API->>R: Enqueue Task (job_id)
+    API-->>FE: Return {job_id, status: queued}
+    
+    loop Polling
+        FE->>API: GET /jobs/{id}/status/
+        API->>DB: Check Status
+        API-->>FE: Return Status
+    end
+
+    R->>W: Consume Task
+    W->>M: Download Inputs
+    W->>W: Process w/ Polars (Cross-ref, Calcs)
+    W->>M: Upload Result.xlsx (Artifacts Bucket)
+    W->>DB: Save Metrics (Snapshot)
+    W->>DB: Update Job Status (SUCCEEDED)
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                     FLUJO: UPLOAD Y PROCESAMIENTO DE ARCHIVOS                    │
-└─────────────────────────────────────────────────────────────────────────────────┘
 
      USUARIO                FRONTEND               API                   BACKEND
         │                      │                    │                        │
@@ -227,10 +269,30 @@ Este documento describe la arquitectura técnica, flujos de datos y comportamien
 
 ### 2. Flujo de Visualización del Dashboard
 
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant FE as Frontend
+    participant API as Django API
+    participant DB as PostgreSQL
+
+    U->>FE: Open /dashboard/
+    FE->>API: GET /dashboard/ (HTML)
+    API->>DB: Get Tenant & Periods
+    API-->>FE: Render HTML Template
+    
+    FE->>API: GET /dashboard/api/metrics/?period=X
+    API->>DB: Get Snapshot (Metrics JSON)
+    
+    alt Snapshot Exists
+        DB-->>API: Return JSON Metrics
+    else Snapshot Missing
+        API->>API: Calc Metrics on fly (Fallback)
+    end
+    
+    API-->>FE: Return Metrics JSON
+    FE->>FE: Render Charts (ECharts)
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                     FLUJO: VISUALIZACIÓN DEL DASHBOARD                           │
-└─────────────────────────────────────────────────────────────────────────────────┘
 
      USUARIO                FRONTEND               API                   DATABASE
         │                      │                    │                        │
@@ -306,10 +368,22 @@ Este documento describe la arquitectura técnica, flujos de datos y comportamien
 
 ### 3. Flujo de Descarga de Excel
 
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant FE as Frontend
+    participant API as Django API
+    participant M as MinIO (S3)
+
+    U->>FE: Click "Download Excel"
+    FE->>API: GET /api/v1/jobs/{id}/download_excel/
+    
+    API->>M: Generate Presigned URL (GET) for Artifact
+    M-->>API: URL (valid for 1h)
+    
+    API-->>FE: Return Redirect (302) or JSON with URL
+    FE->>U: Browser Downloads File (from MinIO)
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                     FLUJO: DESCARGA DE EXCEL                                     │
-└─────────────────────────────────────────────────────────────────────────────────┘
 
      USUARIO                FRONTEND               API                   STORAGE
         │                      │                    │                        │

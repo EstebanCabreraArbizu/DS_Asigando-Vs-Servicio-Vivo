@@ -46,95 +46,59 @@ Sistema web para el análisis comparativo entre **Personal Asignado (PA)** y **S
 
 ## 🏗️ Arquitectura
 
-### Diagrama de Alto Nivel
+### Diagrama de Contenedores (Docker)
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              FRONTEND                                    │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
-│  │  Dashboard  │  │   Upload    │  │   Gráficos  │  │   Tablas    │    │
-│  │   (HTML)    │  │ (Drag&Drop) │  │  (ECharts)  │  │ (Tailwind)  │    │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘    │
-│         │                │                │                │            │
-│         └────────────────┴────────────────┴────────────────┘            │
-│                                   │                                      │
-│                          JavaScript (Fetch API)                          │
-└──────────────────────────────────┬───────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           API LAYER (Django)                             │
-│  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │                      Django REST Framework                       │    │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │    │
-│  │  │ /api/v1/jobs │  │  /dashboard  │  │ /dashboard/api/*     │  │    │
-│  │  │  - POST      │  │  - GET views │  │ - /metrics           │  │    │
-│  │  │  - GET status│  │  - Templates │  │ - /periods           │  │    │
-│  │  │  - GET excel │  │              │  │ - /compare           │  │    │
-│  │  └──────┬───────┘  └──────┬───────┘  └──────────┬───────────┘  │    │
-│  │         │                 │                      │              │    │
-│  │         └─────────────────┼──────────────────────┘              │    │
-│  │                           │                                      │    │
-│  │                   ┌───────▼───────┐                             │    │
-│  │                   │    Views &    │                             │    │
-│  │                   │  Serializers  │                             │    │
-│  │                   └───────┬───────┘                             │    │
-│  └───────────────────────────┼─────────────────────────────────────┘    │
-│                              │                                           │
-│  ┌───────────────────────────▼─────────────────────────────────────┐    │
-│  │                     BUSINESS LOGIC                               │    │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐  │    │
-│  │  │DataProcessor │  │AnalysisEngine│  │   ExcelExporter      │  │    │
-│  │  │  (Polars)    │  │   (Polars)   │  │     (Polars)         │  │    │
-│  │  └──────────────┘  └──────────────┘  └──────────────────────┘  │    │
-│  └─────────────────────────────────────────────────────────────────┘    │
-└──────────────────────────────────┬───────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         DATA LAYER                                       │
-│  ┌─────────────────────┐    ┌─────────────────────────────────────┐    │
-│  │   SQLite/PostgreSQL │    │         File System (Media)         │    │
-│  │  ┌───────────────┐  │    │  ┌─────────────────────────────┐   │    │
-│  │  │   Tenant      │  │    │  │ /media/tenants/{slug}/      │   │    │
-│  │  │   AnalysisJob │  │    │  │   └─ jobs/{job_id}/         │   │    │
-│  │  │   Artifact    │  │    │  │       ├─ inputs/            │   │    │
-│  │  │   Snapshot    │  │    │  │       │   ├─ pa.xlsx        │   │    │
-│  │  │   Membership  │  │    │  │       │   └─ sv.xlsx        │   │    │
-│  │  └───────────────┘  │    │  │       └─ artifacts/         │   │    │
-│  └─────────────────────┘    │  │           └─ resultado.xlsx │   │    │
-│                             │  └─────────────────────────────────┘   │    │
-│                             └─────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    User((Usuario)) -->|HTTP/8001| Web[Django Web]
+    User -->|HTTP/9001| MinIOConsole[MinIO Console]
+    
+    subgraph Docker Network
+        Web -->|Read/Write| DB[(PostgreSQL 16)]
+        Web -->|Broker| Redis[(Redis 7)]
+        Web -->|S3 API| MinIO[(MinIO Object Storage)]
+        
+        Worker[Celery Worker] -->|Consume| Redis
+        Worker -->|Process| DB
+        Worker -->|Get/Put Files| MinIO
+    end
+
+    subgraph "Data Layer"
+        DB --- Data[Structured Data]
+        MinIO --- Buckets[Buckets: inputs, artifacts, exports]
+    end
 ```
 
 ---
 
 ## 🛠️ Tecnologías
 
-### Backend
+### Backend & Procesamiento
 | Tecnología | Versión | Uso |
 |------------|---------|-----|
-| Python | 3.11+ | Lenguaje principal |
-| Django | 5.2 | Framework web |
-| Django REST Framework | 3.15 | API REST |
-| Polars | 1.x | Procesamiento de datos |
-| SQLite/PostgreSQL | - | Base de datos |
+| **Python** | 3.11+ | Lenguaje principal |
+| **Django** | 5.x | Framework web (API + Admin) |
+| **Celery** | 5.x | Cola de tareas asíncronas |
+| **Polars** | 1.x | Procesamiento eficiente de datos |
+
+### Infraestructura (Docker)
+| Servicio | Imagen | Puerto Host | Descripción |
+|----------|--------|-------------|-------------|
+| **Web** | `python:3.11-slim` | 8001 | Aplicación Django + Gunicorn (dev) |
+| **Worker** | `python:3.11-slim` | - | Worker de Celery para tareas pesadas |
+| **Redis** | `redis:7-alpine` | 6379 | Message Broker & Result Backend |
+| **PostgreSQL** | `postgres:16` | 5432 | Base de datos relacional |
+| **MinIO** | `minio/minio:latest` | 9000 (API), 9001 (UI) | Almacenamiento de objetos (S3 Compatible) |
 
 ### Frontend
-| Tecnología | Versión | Uso |
-|------------|---------|-----|
-| HTML5/CSS3 | - | Estructura y estilos |
-| Tailwind CSS | CDN | Framework CSS |
-| ECharts | 5.4.3 | Gráficos interactivos |
-| JavaScript ES6 | - | Interactividad |
+- **HTML5/CSS3** (Tailwind CSS via CDN)
+- **JavaScript ES6+**
+- **ECharts** (Visualización de datos)
 
-### Infraestructura
-| Tecnología | Uso |
-|------------|-----|
-| Docker | Contenedorización |
-| Celery | Tareas asíncronas (opcional) |
-| Redis | Message broker (opcional) |
+### Almacenamiento (MinIO Buckets)
+- `pavssv-inputs`: Archivos crudos subidos por el usuario (PA, SV).
+- `pavssv-artifacts`: Archivos intermedios y resultados del procesamiento.
+- `pavssv-exports`: Archivos finales disponibles para descarga pública/privada.
 
 ---
 
@@ -148,36 +112,39 @@ Sistema web para el análisis comparativo entre **Personal Asignado (PA)** y **S
 
 ### Pasos de Instalación
 
+### Pasos de Instalación (Docker - Recomendado)
+
 ```bash
 # 1. Clonar el repositorio
 git clone https://github.com/tu-usuario/pavssv.git
-cd pavssv
+cd pavssv/server
 
-# 2. Crear entorno virtual
+# 2. Configurar variables de entorno
+cp .env.example .env
+# Nota: Docker Compose gestionará la mayoría de variables, pero asegúrate 
+# de que las credenciales de DB y MinIO coincidan.
+
+# 3. Iniciar contenedores
+docker-compose up -d --build
+
+# 4. Verificar servicios
+docker-compose ps
+```
+
+### Instalación Manual (Desarrollo Local sin Docker)
+
+Si prefieres ejecutarlo localmente sin Docker (requiere Python 3.11+, un servidor Redis y Postgres/SQLite local):
+
+```bash
+cd server
 python -m venv venv
-
-# 3. Activar entorno virtual
-# Windows:
+# Windows
 venv\Scripts\activate
-# Linux/Mac:
+# Linux/Mac
 source venv/bin/activate
 
-# 4. Instalar dependencias
-cd server
 pip install -r requirements.txt
-pip install polars openpyxl xlsxwriter
-
-# 5. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con tus configuraciones
-
-# 6. Ejecutar migraciones
 python manage.py migrate
-
-# 7. Crear superusuario (opcional)
-python manage.py createsuperuser
-
-# 8. Iniciar servidor de desarrollo
 python manage.py runserver 8001
 ```
 
@@ -309,47 +276,39 @@ Ver documentación detallada en:
 
 ---
 
-## � Infraestructura Docker (Producción)
+## 🐳 Infraestructura Docker
 
-### Servicios Desplegados
+El proyecto está totalmente contenerizado para facilitar el despliegue y desarrollo.
 
-| Servicio | Puerto | Descripción |
-|----------|--------|-------------|
-| **Django Web** | 8000 | API REST + Dashboard |
-| **PostgreSQL 16** | 5433 | Base de datos de producción |
-| **MinIO API** | 9000 | Storage S3-compatible |
-| **MinIO Console** | 9001 | Interfaz de administración |
-| **Redis 7** | 6379 | Broker para Celery |
-| **Celery Worker** | - | Procesamiento asíncrono |
-
-### Buckets de MinIO (S3-compatible)
-
-| Bucket | Propósito |
-|--------|-----------|
-| `pavssv-inputs` | Archivos de entrada (PA, SV) |
-| `pavssv-artifacts` | Resultados procesados (Parquet, Excel) |
-| `pavssv-exports` | Archivos para descarga |
+### Servicios
+| Servicio | Puerto Host | Descripción |
+|----------|-------------|-------------|
+| **Web (Django)** | `8001` | Aplicación principal. Acceso: http://localhost:8001 |
+| **MinIO Console**| `9001` | Dashboard S3. Acceso: http://localhost:9001 |
+| **MinIO API** | `9000` | Endpoint S3 para clientes/SDKs |
+| **PostgreSQL** | `5432` | Base de datos (mapeada a 5432 or 5433 si hay conflictos) |
+| **Redis** | `6379` | Broker para Celery |
 
 ### Comandos Rápidos
 
 ```bash
-# Levantar toda la infraestructura
-cd server
-docker-compose up --build -d
+# 1. Levantar servicios en segundo plano
+docker-compose up -d --build
 
-# Ver logs
-docker logs server-web-1 -f
+# 2. Ver logs del servidor web
+docker-compose logs -f web
 
-# Crear superusuario
-docker exec -it server-web-1 python manage.py createsuperuser
+# 3. Ver logs del worker (procesamiento)
+docker-compose logs -f worker
+
+# 4. Crear superusuario (dentro del contenedor web)
+docker-compose exec web python manage.py createsuperuser
 ```
 
 ### URLs de Acceso
-
-- **Dashboard**: http://localhost:8000/dashboard/
-- **Admin**: http://localhost:8000/admin/
-- **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin123)
-- **API Health**: http://localhost:8000/api/v1/health/
+- **Dashboard**: http://localhost:8001/dashboard/
+- **Admin**: http://localhost:8001/admin/
+- **MinIO Console**: http://localhost:9001 (User: `minioadmin`, Pass: `minioadmin123`)
 
 ---
 

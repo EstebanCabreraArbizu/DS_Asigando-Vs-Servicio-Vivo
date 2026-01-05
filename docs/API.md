@@ -627,4 +627,4 @@ Todas las respuestas de error siguen el formato:
 
 ---
 
-*Documentación actualizada: 26 de Diciembre de 2025*
+*Documentación actualizada: 5 de Enero de 2026*
