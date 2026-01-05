@@ -1,273 +1,138 @@
 # 🏗️ Arquitectura del Sistema PA vs SV
 
-Este documento describe la arquitectura técnica, flujos de datos y comportamiento de cada capa del sistema.
+Este documento describe la arquitectura técnica, los componentes de infraestructura y los flujos de datos detallados del sistema.
 
 ---
 
-## 📐 Diagrama de Arquitectura General
+## 📐 Topología de Servicios (Docker Network)
+
+El sistema opera en un entorno de contenedores aislados que se comunican a través de una red interna de Docker.
 
 ```mermaid
 graph TD
-    User((Users)) -->|HTTPS| Frontend[Frontend SPA]
-    Frontend -->|JSON/API| API[Django API]
-
-    subgraph "Backend Services"
-        API -->|Read/Write| DB[(PostgreSQL)]
-        API -->|Enqueue Tasks| Redis[(Redis Broker)]
-        API -->|Upload/Download| MinIO[(MinIO S3)]
+    User((Usuario)) -->|Port 8001| Web[Django Web Container]
+    User -->|Port 9001| MinIOUI[MinIO Console]
+    
+    subgraph "Red Interna Docker (pavssv-network)"
+        Web -->|TCP/5432| DB[(PostgreSQL 16)]
+        Web -->|TCP/6379| Redis[(Redis 7)]
+        Web -->|TCP/9000| MinIO[(MinIO S3 API)]
         
-        Celery[Celery Worker] -->|Consume Tasks| Redis
-        Celery -->|Process Data| PolarsEngine[Polars Engine]
-        Celery -->|Fetch Inputs/Store Artifacts| MinIO
-        Celery -->|Update Status/Metrics| DB
+        Worker[Celery Worker] -->|Consume| Redis
+        Worker -->|Read/Write| DB
+        Worker -->|S3 API| MinIO
     end
 
-    subgraph "Storage Layer"
-        DB
-        MinIO
+    subgraph "External Volumes"
+        DB --- PGData[(PG Data)]
+        MinIO --- S3Data[(Object Storage)]
     end
 ```
-                                      │ HTTPS
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              🌐 CAPA FRONTEND                                    │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │                         NAVEGADOR WEB                                       │ │
-│  │                                                                             │ │
-│  │   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   │ │
-│  │   │   HTML5     │   │ Tailwind CSS│   │  ECharts    │   │ JavaScript  │   │ │
-│  │   │  Templates  │   │   (CDN)     │   │   (CDN)     │   │   ES6+      │   │ │
-│  │   └─────────────┘   └─────────────┘   └─────────────┘   └─────────────┘   │ │
-│  │                                                                             │ │
-│  │   ┌──────────────────────────────────────────────────────────────────────┐ │ │
-│  │   │                        PÁGINAS                                        │ │ │
-│  │   │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐   │ │ │
-│  │   │  │  Dashboard   │  │    Upload    │  │       Admin Django       │   │ │ │
-│  │   │  │  /dashboard/ │  │ /dashboard/  │  │        /admin/           │   │ │ │
-│  │   │  │              │  │   upload/    │  │                          │   │ │ │
-│  │   │  │ • 6 Tabs     │  │ • Drag&Drop  │  │ • Gestión de Tenants    │   │ │ │
-│  │   │  │ • 6 Filtros  │  │ • Progress   │  │ • Gestión de Jobs       │   │ │ │
-│  │   │  │ • 6 KPIs     │  │ • Validación │  │ • Gestión de Usuarios   │   │ │ │
-│  │   │  │ • Gráficos   │  │              │  │                          │   │ │ │
-│  │   │  └──────────────┘  └──────────────┘  └──────────────────────────┘   │ │ │
-│  │   └──────────────────────────────────────────────────────────────────────┘ │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────┬───────────────────────────────────────────┘
-                                      │ HTTP/JSON
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              🔷 CAPA API (Django)                                │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │                      URL ROUTING (urls.py)                                  │ │
-│  │                                                                             │ │
-│  │   /admin/          →  Django Admin                                          │ │
-│  │   /api/v1/         →  API REST (jobs)                                       │ │
-│  │   /dashboard/      →  Dashboard Views                                       │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                      │                                           │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │                         APPS DJANGO                                         │ │
-│  │                                                                             │ │
-│  │   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐   │ │
-│  │   │    TENANTS      │  │      JOBS       │  │       DASHBOARD         │   │ │
-│  │   │                 │  │                 │  │                         │   │ │
-│  │   │ • Tenant        │  │ • AnalysisJob   │  │ • DashboardView         │   │ │
-│  │   │ • Membership    │  │ • Artifact      │  │ • UploadView            │   │ │
-│  │   │ • Roles         │  │ • Snapshot      │  │ • MetricsAPIView        │   │ │
-│  │   │                 │  │                 │  │ • PeriodsAPIView        │   │ │
-│  │   │ Aislamiento     │  │ Procesamiento   │  │ • CompareAPIView        │   │ │
-│  │   │ Multi-tenant    │  │ de archivos     │  │ • DetailsAPIView        │   │ │
-│  │   └─────────────────┘  └─────────────────┘  └─────────────────────────┘   │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                      │                                           │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │                    CAPA DE LÓGICA DE NEGOCIO                                │ │
-│  │                                                                             │ │
-│  │   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────┐   │ │
-│  │   │ DataProcessor   │  │AnalysisEngine   │  │    ExcelExporter        │   │ │
-│  │   │    (Polars)     │  │    (Polars)     │  │      (Polars)           │   │ │
-│  │   │                 │  │                 │  │                         │   │ │
-│  │   │ • Leer Excel    │  │ • Cruzar datos  │  │ • Generar Excel         │   │ │
-│  │   │ • Limpiar datos │  │ • Calcular diff │  │ • Formatear hojas       │   │ │
-│  │   │ • Normalizar    │  │ • Clasificar    │  │ • Estilos               │   │ │
-│  │   │ • Validar       │  │   estados       │  │                         │   │ │
-│  │   └─────────────────┘  └─────────────────┘  └─────────────────────────┘   │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────┬───────────────────────────────────────────┘
-                                      │ ORM
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           💾 CAPA DE DATOS                                       │
-│                                                                                  │
-│   ┌──────────────────────────────┐    ┌──────────────────────────────────────┐ │
-│   │     BASE DE DATOS            │    │        SISTEMA DE ARCHIVOS           │ │
-│   │     (SQLite/PostgreSQL)      │    │             (Media)                  │ │
-│   │                              │    │                                      │ │
-│   │   ┌────────────────────┐    │    │   /media/tenants/                    │ │
-│   │   │      Tenant        │    │    │   └── {tenant_slug}/                 │ │
-│   │   │ • id (UUID)        │    │    │       └── jobs/                      │ │
-│   │   │ • name             │    │    │           └── {job_id}/              │ │
-│   │   │ • slug             │    │    │               ├── inputs/            │ │
-│   │   │ • is_active        │    │    │               │   ├── pa.xlsx        │ │
-│   │   └────────────────────┘    │    │               │   └── sv.xlsx        │ │
-│   │            │                │    │               └── artifacts/         │ │
-│   │            ▼                │    │                   └── resultado.xlsx │ │
-│   │   ┌────────────────────┐    │    │                                      │ │
-│   │   │   AnalysisJob      │    │    └──────────────────────────────────────┘ │
-│   │   │ • id (UUID)        │    │                                             │
-│   │   │ • tenant_id (FK)   │    │                                             │
-│   │   │ • period_month     │    │                                             │
-│   │   │ • status           │    │                                             │
-│   │   │ • input_pa (File)  │    │                                             │
-│   │   │ • input_sv (File)  │    │                                             │
-│   │   └────────────────────┘    │                                             │
-│   │            │                │                                             │
-│   │            ▼                │                                             │
-│   │   ┌────────────────────┐    │                                             │
-│   │   │     Artifact       │    │                                             │
-│   │   │ • id (UUID)        │    │                                             │
-│   │   │ • job_id (FK)      │    │                                             │
-│   │   │ • kind (excel/log) │    │                                             │
-│   │   │ • file (File)      │    │                                             │
-│   │   └────────────────────┘    │                                             │
-│   │            │                │                                             │
-│   │            ▼                │                                             │
-│   │   ┌────────────────────┐    │                                             │
-│   │   │  AnalysisSnapshot  │    │                                             │
-│   │   │ • id (UUID)        │    │                                             │
-│   │   │ • tenant_id (FK)   │    │                                             │
-│   │   │ • job_id (FK)      │    │                                             │
-│   │   │ • period_month     │    │                                             │
-│   │   │ • metrics (JSON)   │    │                                             │
-│   │   └────────────────────┘    │                                             │
-│   └──────────────────────────────┘                                             │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+
+### Detalle de Puertos y Servicios
+| Servicio | Host Port | Internal Port | Protocolo | Uso |
+|----------|-----------|---------------|-----------|-----|
+| **Web** | 8001 | 8000 | HTTP | Aplicación Django (API + Dashboard) |
+| **PostgreSQL**| 5432 | 5432 | TCP | Base de Datos Relacional |
+| **Redis** | 6379 | 6379 | TCP | Broker para Celery y Result Backend |
+| **MinIO API** | 9000 | 9000 | HTTP | Almacenamiento S3 Compatible |
+| **MinIO UI** | 9001 | 9001 | HTTP | Consola de administración de MinIO |
 
 ---
 
-## 🔄 Flujos de Datos
+## 🧱 Capas del Sistema
 
-### 1. Flujo de Upload y Procesamiento
+### 1. Capa de Presentación (Frontend)
+- **Tecnología**: HTML5, Vanilla JavaScript (ES6+), Tailwind CSS.
+- **Visualización**: ECharts para gráficos dinámicos.
+- **Comunicación**: Consume la Capa API mediante `fetch()` de forma asíncrona.
+
+### 2. Capa de Aplicación y API (Django)
+- **Django REST Framework**: Expone endpoints para la gestión de trabajos y métricas.
+- **Gestión de Tenants**: Aislamiento de datos por empresa/cliente.
+- **Control de Flujo**: Coordina la subida a MinIO y el encolado de tareas en Redis.
+
+### 3. Capa de Procesamiento Asíncrono (Celery + Polars)
+- **Worker**: Procesa archivos en segundo plano para no bloquear la UI.
+- **Motor Polars**: Utilizado para realizar el cruce de datos (Join) entre PA y SV de forma eficiente en memoria.
+
+### 4. Capa de Persistencia (PostgreSQL + MinIO)
+- **PostgreSQL**: Almacena metadatos (Jobs, Artifacts, Snapshots, Tenants).
+- **MinIO**: Almacena los archivos binarios (Excel de entrada y salida).
+
+---```
+
+---
+
+## 🔄 Flujos de Datos Detallados
+
+### 1. Flujo de Upload y Procesamiento Asíncrono
+Este flujo describe cómo los archivos subidos por el usuario son procesados sin bloquear la interfaz.
 
 ```mermaid
 sequenceDiagram
     participant U as Usuario
-    participant FE as Frontend
+    participant FE as Frontend (JS)
     participant API as Django API
+    participant DB as PostgreSQL
     participant M as MinIO (S3)
     participant R as Redis
     participant W as Celery Worker
-    participant DB as PostgreSQL
 
-    U->>FE: Select Files (PA, SV) & Period
-    FE->>API: POST /api/v1/jobs/ (FormData)
-    API->>M: Upload PA.xlsx & SV.xlsx (Input Bucket)
-    API->>DB: Create Job (Status: CURRENT)
-    API->>R: Enqueue Task (job_id)
-    API-->>FE: Return {job_id, status: queued}
+    U->>FE: Selecciona archivos (PA, SV) y Periodo
+    FE->>API: POST /api/v1/jobs/ (Multipart Form)
     
-    loop Polling
-        FE->>API: GET /jobs/{id}/status/
-        API->>DB: Check Status
-        API-->>FE: Return Status
+    API->>M: Almacena archivos originales (Bucket: pavssv-inputs)
+    API->>DB: Crea registro AnalysisJob (Status: QUEUED)
+    API->>R: Encola tarea de procesamiento (job_id)
+    
+    API-->>FE: Retorna {job_id, status: 'queued'}
+    
+    Note over FE,API: Polling de Estado
+    loop Cada 2 segundos
+        FE->>API: GET /api/v1/jobs/{id}/status/
+        API->>DB: Consulta status actual
+        API-->>FE: Retorna status (QUEUED -> RUNNING -> SUCCEEDED)
     end
 
-    R->>W: Consume Task
-    W->>M: Download Inputs
-    W->>W: Process w/ Polars (Cross-ref, Calcs)
-    W->>M: Upload Result.xlsx (Artifacts Bucket)
-    W->>DB: Save Metrics (Snapshot)
-    W->>DB: Update Job Status (SUCCEEDED)
+    Note over R,W: Procesamiento en Background
+    R->>W: Worker toma la tarea
+    W->>M: Descarga archivos desde pavssv-inputs
+    W->>W: Ejecuta Motor Polars (Join, Limpieza, Cálculos)
+    W->>M: Sube Excel resultante (Bucket: pavssv-artifacts)
+    W->>DB: Crea Artifact (vincula job_id con ruta en MinIO)
+    W->>DB: Guarda Snapshot (métricas JSON para el dashboard)
+    W->>DB: Actualiza Job a SUCCEEDED
 ```
-
-     USUARIO                FRONTEND               API                   BACKEND
-        │                      │                    │                        │
-        │  1. Selecciona      │                    │                        │
-        │     archivos PA/SV  │                    │                        │
-        │─────────────────────>│                    │                        │
-        │                      │                    │                        │
-        │                      │  2. Valida formato │                        │
-        │                      │     (.xlsx/.csv)   │                        │
-        │                      │                    │                        │
-        │                      │  3. POST /api/v1/  │                        │
-        │                      │     jobs/          │                        │
-        │                      │───────────────────>│                        │
-        │                      │  FormData:         │                        │
-        │                      │  - file_pa         │                        │
-        │                      │  - file_sv         │                        │
-        │                      │  - period          │                        │
-        │                      │  - tenant          │                        │
-        │                      │                    │                        │
-        │                      │                    │  4. Crear AnalysisJob  │
-        │                      │                    │────────────────────────>│
-        │                      │                    │     status=QUEUED      │
-        │                      │                    │                        │
-        │                      │                    │  5. Guardar archivos   │
-        │                      │                    │────────────────────────>│
-        │                      │                    │     /media/tenants/... │
-        │                      │                    │                        │
-        │                      │  6. Response       │                        │
-        │                      │<───────────────────│                        │
-        │                      │  {job_id, status}  │                        │
-        │                      │                    │                        │
-        │                      │                    │  7. Procesar datos     │
-        │                      │                    │────────────────────────>│
-        │                      │                    │     (síncrono)         │
-        │                      │                    │                        │
-        │                      │                    │        ┌───────────────┴───────────────┐
-        │                      │                    │        │     PROCESAMIENTO             │
-        │                      │                    │        │                               │
-        │                      │                    │        │  a. DataProcessor.load()      │
-        │                      │                    │        │     - Leer Excel con Polars   │
-        │                      │                    │        │     - Detectar encoding       │
-        │                      │                    │        │     - Normalizar columnas     │
-        │                      │                    │        │                               │
-        │                      │                    │        │  b. AnalysisEngine.analyze()  │
-        │                      │                    │        │     - Cruzar PA con SV        │
-        │                      │                    │        │     - Calcular diferencias    │
-        │                      │                    │        │     - Asignar estados         │
-        │                      │                    │        │     - Agregar métricas        │
-        │                      │                    │        │                               │
-        │                      │                    │        │  c. ExcelExporter.export()    │
-        │                      │                    │        │     - Generar Excel resultado │
-        │                      │                    │        │     - Crear hojas:            │
-        │                      │                    │        │       • Resumen               │
-        │                      │                    │        │       • PA vs SV              │
-        │                      │                    │        │       • Por Estado            │
-        │                      │                    │        └───────────────┬───────────────┘
-        │                      │                    │                        │
-        │                      │                    │  8. Crear Artifact     │
-        │                      │                    │<───────────────────────│
-        │                      │                    │     (Excel resultado)  │
-        │                      │                    │                        │
-        │                      │                    │  9. Crear Snapshot     │
-        │                      │                    │<───────────────────────│
-        │                      │                    │     (métricas JSON)    │
-        │                      │                    │                        │
-        │                      │                    │  10. Update Job        │
-        │                      │                    │<───────────────────────│
-        │                      │                    │      status=SUCCEEDED  │
-        │                      │                    │                        │
-        │                      │  11. Poll status   │                        │
-        │                      │───────────────────>│                        │
-        │                      │  GET /jobs/{id}/   │                        │
-        │                      │      status/       │                        │
-        │                      │                    │                        │
-        │                      │  12. Response      │                        │
-        │                      │<───────────────────│                        │
-        │                      │  {status:succeeded}│                        │
-        │                      │                    │                        │
-        │  13. Redirigir a     │                    │                        │
-        │      Dashboard       │                    │                        │
-        │<─────────────────────│                    │                        │
-        │                      │                    │                        │
-        ▼                      ▼                    ▼                        ▼
-```
-
----
 
 ### 2. Flujo de Visualización del Dashboard
+Muestra cómo se recuperan las métricas pre-calculadas para una carga instantánea.
+
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant FE as Frontend (ECharts)
+    participant API as Django API
+    participant DB as PostgreSQL
+
+    U->>FE: Navega a /dashboard/
+    FE->>API: GET /dashboard/api/metrics/?period=2025-11
+    
+    API->>DB: Busca Snapshot para el Periodo y Tenant
+    
+    alt Snapshot Existe
+        DB-->>API: Retorna JSON de métricas
+    else Snapshot No Existe (Fallback)
+        API->>DB: Busca el último Job exitoso
+        API->>API: Calcula métricas en tiempo real (vía Polars)
+    end
+    
+    API-->>FE: Retorna JSON estructurado
+    FE->>FE: Inicializa ECharts y renderiza 6+ gráficos
+```
+
+### 3. Flujo de Descarga de Reporte Excel
+Este flujo es crítico: intercede por Postgres para obtener el índice del archivo antes de ir a MinIO.
 
 ```mermaid
 sequenceDiagram
@@ -275,581 +140,61 @@ sequenceDiagram
     participant FE as Frontend
     participant API as Django API
     participant DB as PostgreSQL
-
-    U->>FE: Open /dashboard/
-    FE->>API: GET /dashboard/ (HTML)
-    API->>DB: Get Tenant & Periods
-    API-->>FE: Render HTML Template
-    
-    FE->>API: GET /dashboard/api/metrics/?period=X
-    API->>DB: Get Snapshot (Metrics JSON)
-    
-    alt Snapshot Exists
-        DB-->>API: Return JSON Metrics
-    else Snapshot Missing
-        API->>API: Calc Metrics on fly (Fallback)
-    end
-    
-    API-->>FE: Return Metrics JSON
-    FE->>FE: Render Charts (ECharts)
-```
-
-     USUARIO                FRONTEND               API                   DATABASE
-        │                      │                    │                        │
-        │  1. Navegar a       │                    │                        │
-        │     /dashboard/     │                    │                        │
-        │─────────────────────>│                    │                        │
-        │                      │                    │                        │
-        │                      │  2. GET /dashboard │                        │
-        │                      │───────────────────>│                        │
-        │                      │                    │                        │
-        │                      │                    │  3. Query Tenant       │
-        │                      │                    │────────────────────────>│
-        │                      │                    │                        │
-        │                      │                    │  4. Query Periods      │
-        │                      │                    │────────────────────────>│
-        │                      │                    │     SELECT DISTINCT    │
-        │                      │                    │     period_month       │
-        │                      │                    │     FROM AnalysisJob   │
-        │                      │                    │                        │
-        │                      │  5. HTML Response  │                        │
-        │                      │<───────────────────│                        │
-        │                      │                    │                        │
-        │  6. Render página   │                    │                        │
-        │<─────────────────────│                    │                        │
-        │                      │                    │                        │
-        │                      │  7. JS: Fetch API  │                        │
-        │                      │  GET /dashboard/   │                        │
-        │                      │  api/metrics/      │                        │
-        │                      │───────────────────>│                        │
-        │                      │  ?tenant=default   │                        │
-        │                      │  &period=2025-11   │                        │
-        │                      │                    │                        │
-        │                      │                    │  8. Query Snapshot     │
-        │                      │                    │────────────────────────>│
-        │                      │                    │     SELECT metrics     │
-        │                      │                    │     FROM Snapshot      │
-        │                      │                    │     WHERE tenant=X     │
-        │                      │                    │     AND period=Y       │
-        │                      │                    │                        │
-        │                      │                    │        ┌───────────────┴───────────────┐
-        │                      │                    │        │  Si no hay Snapshot:          │
-        │                      │                    │        │  - Leer Parquet/Excel         │
-        │                      │                    │        │  - Calcular métricas          │
-        │                      │                    │        │  - Generar agregados          │
-        │                      │                    │        └───────────────┬───────────────┘
-        │                      │                    │                        │
-        │                      │  9. JSON Response  │                        │
-        │                      │<───────────────────│                        │
-        │                      │  {                 │                        │
-        │                      │    total_pa: 14708,│                        │
-        │                      │    total_sv: 13237,│                        │
-        │                      │    diferencia:1470,│                        │
-        │                      │    cobertura: 90%, │                        │
-        │                      │    by_estado: [...],│                       │
-        │                      │    by_cliente:[...],│                       │
-        │                      │    by_zona: [...], │                        │
-        │                      │    filtros: {...}  │                        │
-        │                      │  }                 │                        │
-        │                      │                    │                        │
-        │                      │  10. Renderizar    │                        │
-        │                      │      gráficos      │                        │
-        │                      │   • ECharts.init() │                        │
-        │                      │   • setOption()    │                        │
-        │                      │                    │                        │
-        │  11. Ver dashboard   │                    │                        │
-        │      interactivo     │                    │                        │
-        │<─────────────────────│                    │                        │
-        │                      │                    │                        │
-        ▼                      ▼                    ▼                        ▼
-```
-
----
-
-### 3. Flujo de Descarga de Excel
-
-```mermaid
-sequenceDiagram
-    participant U as Usuario
-    participant FE as Frontend
-    participant API as Django API
     participant M as MinIO (S3)
 
-    U->>FE: Click "Download Excel"
+    U->>FE: Click en botón "Descargar Excel"
     FE->>API: GET /api/v1/jobs/{id}/download_excel/
     
-    API->>M: Generate Presigned URL (GET) for Artifact
-    M-->>API: URL (valid for 1h)
+    Note right of API: Intercepción por Postgres
+    API->>DB: Consulta tabla 'Artifact' por job_id y tipo='excel'
+    DB-->>API: Retorna el Path exacto en MinIO (Key)
     
-    API-->>FE: Return Redirect (302) or JSON with URL
-    FE->>U: Browser Downloads File (from MinIO)
-```
-
-     USUARIO                FRONTEND               API                   STORAGE
-        │                      │                    │                        │
-        │  1. Click botón     │                    │                        │
-        │     "📥 Excel"      │                    │                        │
-        │─────────────────────>│                    │                        │
-        │                      │                    │                        │
-        │                      │  2. GET /api/v1/   │                        │
-        │                      │     jobs/latest/   │                        │
-        │                      │     download/      │                        │
-        │                      │───────────────────>│                        │
-        │                      │  ?tenant=default   │                        │
-        │                      │                    │                        │
-        │                      │                    │  3. Query último Job   │
-        │                      │                    │────────────────────────>│
-        │                      │                    │     SELECT * FROM Job  │
-        │                      │                    │     WHERE status=      │
-        │                      │                    │       'succeeded'      │
-        │                      │                    │     ORDER BY           │
-        │                      │                    │       created_at DESC  │
-        │                      │                    │     LIMIT 1            │
-        │                      │                    │                        │
-        │                      │                    │  4. Query Artifact     │
-        │                      │                    │────────────────────────>│
-        │                      │                    │     SELECT file FROM   │
-        │                      │                    │     Artifact WHERE     │
-        │                      │                    │     job_id=X AND       │
-        │                      │                    │     kind='excel'       │
-        │                      │                    │                        │
-        │                      │                    │  5. Leer archivo       │
-        │                      │                    │────────────────────────>│
-        │                      │                    │     /media/tenants/    │
-        │                      │                    │     default/jobs/      │
-        │                      │                    │     {id}/artifacts/    │
-        │                      │                    │     resultado.xlsx     │
-        │                      │                    │                        │
-        │                      │  6. FileResponse   │                        │
-        │                      │<───────────────────│                        │
-        │                      │  Headers:          │                        │
-        │                      │  Content-Type:     │                        │
-        │                      │    application/    │                        │
-        │                      │    vnd.openxml...  │                        │
-        │                      │  Content-Disp:     │                        │
-        │                      │    attachment;     │                        │
-        │                      │    filename=       │                        │
-        │                      │    "PA_vs_SV_      │                        │
-        │                      │     2025-11.xlsx"  │                        │
-        │                      │                    │                        │
-        │  7. Descargar       │                    │                        │
-        │     archivo         │                    │                        │
-        │<─────────────────────│                    │                        │
-        │                      │                    │                        │
-        ▼                      ▼                    ▼                        ▼
+    API->>M: Genera Presigned URL (S3 URL temporal)
+    M-->>API: URL firmada (ej. valid por 10 min)
+    
+    API-->>FE: Redirección 302 hacia la S3 URL
+    U->>M: El navegador descarga el archivo directamente de MinIO
 ```
 
 ---
 
-## 🔀 Comportamiento por Capa
+## 🔀 Comportamiento por Capas
 
-### 1. Capa Frontend
+### Capa Frontend (Interfaz de Usuario)
+- **main.js**: Coordina las llamadas a la API y la actualización del DOM.
+- **charts.js**: Encapsula la lógica de configuración de ECharts para mantener el dashboard reactivo.
+- **upload.js**: Gestiona el arrastre de archivos (Drag & Drop) y la barra de progreso mediante polling.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           CAPA FRONTEND - COMPORTAMIENTO                         │
-└─────────────────────────────────────────────────────────────────────────────────┘
+### Capa de Aplicación (Django)
+- **Modelos**:
+    - `Tenant`: Define el contexto de datos (Aislamiento Multi-empresa).
+    - `AnalysisJob`: Rastrea el ciclo de vida de cada proceso de carga.
+    - `Artifact`: Índice de archivos generados almacenados en MinIO.
+    - `AnalysisSnapshot`: Caché de métricas agregadas en formato JSON para velocidad de lectura.
+- **Middleware de Tenant**: Asegura que un usuario solo acceda a los datos de su propia empresa.
 
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  📄 main.html (Dashboard Principal)                                              │
-│                                                                                  │
-│  ESTRUCTURA:                                                                     │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  HEADER                                                                     │ │
-│  │  ┌──────────┐  ┌──────────────┐  ┌────────┐  ┌────────┐  ┌────────────┐   │ │
-│  │  │  Título  │  │ Periodo      │  │Comparar│  │ Subir  │  │   Excel    │   │ │
-│  │  │          │  │ [Dropdown ▼] │  │   📊   │  │   📤   │  │     📥     │   │ │
-│  │  └──────────┘  └──────────────┘  └────────┘  └────────┘  └────────────┘   │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  FILTROS GLOBALES                                                           │ │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────┐ │ │
-│  │  │MacroZona │ │   Zona   │ │ Compañía │ │  Grupo   │ │  Sector  │ │Ger. │ │ │
-│  │  │  [▼]     │ │   [▼]    │ │   [▼]    │ │   [▼]    │ │   [▼]    │ │ [▼] │ │ │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └─────┘ │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  NAVEGACIÓN (TABS)                                                          │ │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌─────┐ │ │
-│  │  │ Resumen  │ │Por Cliente│ │Por Unidad│ │Por Serv. │ │ Gráficos │ │Det. │ │ │
-│  │  │    📈    │ │    👥    │ │    🏢    │ │    🔧    │ │    📊    │ │  📋 │ │ │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘ └─────┘ │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  CONTENIDO (varía según tab activo)                                         │ │
-│  │                                                                             │ │
-│  │  Tab "Resumen":                                                             │ │
-│  │  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐                    │ │
-│  │  │  PA  │ │  SV  │ │ Diff │ │ Cob% │ │ Dif% │ │ Total│  ← KPIs            │ │
-│  │  │14,708│ │13,237│ │1,470 │ │ 90%  │ │ 11%  │ │5,576 │                    │ │
-│  │  └──────┘ └──────┘ └──────┘ └──────┘ └──────┘ └──────┘                    │ │
-│  │                                                                             │ │
-│  │  ┌─────────────────────┐  ┌─────────────────────┐                         │ │
-│  │  │  📊 Por Estado      │  │  🏆 Top 10 Clientes │  ← Gráficos             │ │
-│  │  │     (Barras)        │  │      (Barras H)     │                         │ │
-│  │  └─────────────────────┘  └─────────────────────┘                         │ │
-│  │                                                                             │ │
-│  │  ┌─────────────────────┐  ┌─────────────────────┐                         │ │
-│  │  │  🌍 Por Zona        │  │  🗺️ Por MacroZona  │                         │ │
-│  │  │     (Barras)        │  │      (Donut)        │                         │ │
-│  │  └─────────────────────┘  └─────────────────────┘                         │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  COMPORTAMIENTO JAVASCRIPT:                                                      │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  1. DOMContentLoaded → fetchMetrics()                                       │ │
-│  │  2. fetchMetrics() → GET /dashboard/api/metrics/?tenant=X&period=Y          │ │
-│  │  3. Response → updateKPIs(data) + renderCharts(data)                        │ │
-│  │  4. Tab click → showTab(tabId) + chart.resize()                             │ │
-│  │  5. Filter change → applyFilters() (frontend filtering)                     │ │
-│  │  6. Period change → fetchMetrics() con nuevo periodo                        │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  📄 upload.html (Página de Carga)                                                │
-│                                                                                  │
-│  COMPONENTES:                                                                    │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
-│  │  │                     DROP ZONE - PA                                   │   │ │
-│  │  │                                                                      │   │ │
-│  │  │     📁 Arrastra aquí el archivo de Personal Asignado                │   │ │
-│  │  │                    o haz click para seleccionar                      │   │ │
-│  │  │                                                                      │   │ │
-│  │  │     [archivo_pa.xlsx ✓]                                             │   │ │
-│  │  └─────────────────────────────────────────────────────────────────────┘   │ │
-│  │                                                                             │ │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
-│  │  │                     DROP ZONE - SV                                   │   │ │
-│  │  │                                                                      │   │ │
-│  │  │     📁 Arrastra aquí el archivo de Servicio Vivo                    │   │ │
-│  │  │                    o haz click para seleccionar                      │   │ │
-│  │  │                                                                      │   │ │
-│  │  │     [archivo_sv.xlsx ✓]                                             │   │ │
-│  │  └─────────────────────────────────────────────────────────────────────┘   │ │
-│  │                                                                             │ │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
-│  │  │  Periodo: [Noviembre ▼] [2025 ▼]    [🚀 Procesar Archivos]         │   │ │
-│  │  └─────────────────────────────────────────────────────────────────────┘   │ │
-│  │                                                                             │ │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐   │ │
-│  │  │  BARRA DE PROGRESO                                                   │   │ │
-│  │  │  ████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  45%           │   │ │
-│  │  │  "Procesando datos..."                                               │   │ │
-│  │  └─────────────────────────────────────────────────────────────────────┘   │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  EVENTOS:                                                                        │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  • dragover  → e.preventDefault() + addClass('drag-over')                   │ │
-│  │  • dragleave → removeClass('drag-over')                                     │ │
-│  │  • drop      → e.preventDefault() + handleFile(e.dataTransfer.files[0])     │ │
-│  │  • click     → input[type=file].click()                                     │ │
-│  │  • submit    → POST /api/v1/jobs/ con FormData                              │ │
-│  │  • polling   → setInterval(checkStatus, 1000)                               │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────────────┘
-```
+### Capa de Procesamiento (Polars Engine)
+- **Normalización**: Convierte nombres de columnas heterogéneos a un estándar interno.
+- **Cruce de Datos**: Realiza un `outer join` entre PA y SV usando `Num_Fotocheck` o `DNI` como llave primaria.
+- **Lógica de Estados**: Clasifica cada registro como:
+    - `COINCIDE`: Horas PA == Horas SV.
+    - `SOBRECARGA`: Horas SV > Horas PA.
+    - `FALTA`: Horas SV < Horas PA.
+    - `SIN_SV`: Solo presente en PA.
+    - `SIN_PA`: Solo presente en SV.
 
 ---
 
-### 2. Capa API (Django)
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                           CAPA API - COMPORTAMIENTO                              │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  📁 JOBS APP                                                                     │
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  JobCreateView (POST /api/v1/jobs/)                                         │ │
-│  │                                                                             │ │
-│  │  def post(self, request):                                                   │ │
-│  │      1. Validar archivos (file_pa, file_sv)                                │ │
-│  │      2. Validar tenant y periodo                                           │ │
-│  │      3. Crear AnalysisJob(status=QUEUED)                                   │ │
-│  │      4. Guardar archivos en /media/                                        │ │
-│  │      5. job.status = RUNNING                                               │ │
-│  │      6. Llamar run_analysis(job)                                           │ │
-│  │         ├── DataProcessor.load_files()                                     │ │
-│  │         ├── AnalysisEngine.analyze()                                       │ │
-│  │         ├── ExcelExporter.export()                                         │ │
-│  │         └── Crear Artifact + Snapshot                                      │ │
-│  │      7. job.status = SUCCEEDED (o FAILED si error)                         │ │
-│  │      8. Return {job_id, status}                                            │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  JobStatusView (GET /api/v1/jobs/<id>/status/)                              │ │
-│  │                                                                             │ │
-│  │  def get(self, request, job_id):                                           │ │
-│  │      1. Query AnalysisJob by id                                            │ │
-│  │      2. Return {status, error_message?, artifact_url?}                     │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  JobLatestDownloadView (GET /api/v1/jobs/latest/download/)                  │ │
-│  │                                                                             │ │
-│  │  def get(self, request):                                                   │ │
-│  │      1. Get tenant from query params                                       │ │
-│  │      2. Query último Job exitoso del tenant                                │ │
-│  │      3. Query Artifact tipo 'excel'                                        │ │
-│  │      4. Generar filename: PA_vs_SV_{YYYY-MM}.xlsx                          │ │
-│  │      5. Return FileResponse con headers apropiados                         │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  📁 DASHBOARD APP                                                                │
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  DashboardView (GET /dashboard/)                                            │ │
-│  │                                                                             │ │
-│  │  def get(self, request):                                                   │ │
-│  │      1. Resolver tenant (query param o default)                            │ │
-│  │      2. Query períodos disponibles                                         │ │
-│  │      3. Render template 'dashboard/main.html' con contexto                 │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  MetricsAPIView (GET /dashboard/api/metrics/)                               │ │
-│  │                                                                             │ │
-│  │  def get(self, request):                                                   │ │
-│  │      1. Parsear tenant y period de query params                            │ │
-│  │      2. Buscar Snapshot existente                                          │ │
-│  │      3. Si no existe, generar métricas desde Job:                          │ │
-│  │         ├── Leer Excel resultado con Polars                                │ │
-│  │         ├── Calcular agregados (total_pa, total_sv, etc.)                  │ │
-│  │         ├── Agrupar by_estado, by_cliente, by_zona, etc.                   │ │
-│  │         └── Extraer valores únicos para filtros                            │ │
-│  │      4. Return JSON con todas las métricas                                 │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  _generate_metrics_from_job() - LÓGICA PRINCIPAL                            │ │
-│  │                                                                             │ │
-│  │  Preferencia de datos SV sobre PA:                                         │ │
-│  │  ┌──────────────────────────────────────────────────────────────────────┐  │ │
-│  │  │  zona = pl.coalesce([                                                 │  │ │
-│  │  │      pl.col("Zona_SV"),           # Primero SV                       │  │ │
-│  │  │      pl.col("Zona_PA"),           # Fallback PA                      │  │ │
-│  │  │      pl.lit("Sin Zona")           # Default                          │  │ │
-│  │  │  ])                                                                   │  │ │
-│  │  └──────────────────────────────────────────────────────────────────────┘  │ │
-│  │                                                                             │ │
-│  │  Agregaciones generadas:                                                   │ │
-│  │  • by_estado     → [{estado, pa, sv, count}]                              │ │
-│  │  • by_cliente    → [{nombre, grupo, pa, sv, diff, cob%, estado}]          │ │
-│  │  • by_zona       → [{zona, pa, sv}]                                       │ │
-│  │  • by_macrozona  → [{macrozona, total}]                                   │ │
-│  │  • by_unidad     → [{unidad, pa, sv}]                                     │ │
-│  │  • by_servicio   → [{servicio, pa, sv}]                                   │ │
-│  │  • by_grupo      → [{grupo, pa, sv}]                                      │ │
-│  │                                                                             │ │
-│  │  Filtros disponibles:                                                      │ │
-│  │  • macrozona  → valores únicos de Macrozona_SV                            │ │
-│  │  • zona       → valores únicos de Zona combinada                          │ │
-│  │  • compania   → valores únicos de Compañía_PA/SV                          │ │
-│  │  • grupo      → valores únicos de Nombre_Grupo                            │ │
-│  │  • sector     → valores únicos de Sector_PA/SV                            │ │
-│  │  • gerente    → valores únicos de Gerencia_PA/SV                          │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  CompareAPIView (GET /dashboard/api/compare/)                               │ │
-│  │                                                                             │ │
-│  │  def get(self, request):                                                   │ │
-│  │      1. Obtener period_a y period_b de query params                        │ │
-│  │      2. Generar métricas para ambos períodos                               │ │
-│  │      3. Calcular variaciones (delta, %)                                    │ │
-│  │      4. Return {period_a: {...}, period_b: {...}, variation: {...}}        │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-### 3. Capa Base de Datos
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                        CAPA BASE DE DATOS - ESQUEMA                              │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  📊 MODELO ENTIDAD-RELACIÓN                                                      │
-│                                                                                  │
-│  ┌─────────────────┐                                                            │
-│  │     Tenant      │                                                            │
-│  │─────────────────│                                                            │
-│  │ PK id (UUID)    │                                                            │
-│  │    name         │                                                            │
-│  │    slug (unique)│                                                            │
-│  │    is_active    │                                                            │
-│  │    created_at   │                                                            │
-│  │    updated_at   │                                                            │
-│  └────────┬────────┘                                                            │
-│           │                                                                      │
-│           │ 1:N                                                                  │
-│           │                                                                      │
-│  ┌────────▼────────┐         ┌─────────────────┐                               │
-│  │  AnalysisJob    │         │     Artifact    │                               │
-│  │─────────────────│         │─────────────────│                               │
-│  │ PK id (UUID)    │ 1:N     │ PK id (UUID)    │                               │
-│  │ FK tenant_id    │────────>│ FK job_id       │                               │
-│  │    period_month │         │    kind (enum)  │                               │
-│  │    status(enum) │         │    file (path)  │                               │
-│  │    input_pa     │         │    created_at   │                               │
-│  │    input_sv     │         └─────────────────┘                               │
-│  │    error_message│                                                            │
-│  │    created_at   │                                                            │
-│  │    updated_at   │                                                            │
-│  └────────┬────────┘                                                            │
-│           │                                                                      │
-│           │ 1:1                                                                  │
-│           │                                                                      │
-│  ┌────────▼────────┐                                                            │
-│  │AnalysisSnapshot │                                                            │
-│  │─────────────────│                                                            │
-│  │ PK id (UUID)    │                                                            │
-│  │ FK tenant_id    │                                                            │
-│  │ FK job_id (1:1) │                                                            │
-│  │    period_month │                                                            │
-│  │    metrics(JSON)│  ← Métricas pre-calculadas                                │
-│  │    created_at   │                                                            │
-│  └─────────────────┘                                                            │
-│                                                                                  │
-│  ┌─────────────────┐         ┌─────────────────┐                               │
-│  │   Membership    │         │      User       │                               │
-│  │─────────────────│         │  (Django Auth)  │                               │
-│  │ PK id (UUID)    │ N:1     │─────────────────│                               │
-│  │ FK user_id      │────────>│ PK id           │                               │
-│  │ FK tenant_id    │         │    username     │                               │
-│  │    role (enum)  │         │    email        │                               │
-│  │    created_at   │         │    ...          │                               │
-│  └─────────────────┘         └─────────────────┘                               │
-└──────────────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  📋 ENUMS Y CHOICES                                                              │
-│                                                                                  │
-│  JobStatus:                    ArtifactKind:           MembershipRole:          │
-│  ┌────────────────────┐       ┌────────────────┐       ┌────────────────┐       │
-│  │ • QUEUED           │       │ • EXCEL        │       │ • OWNER        │       │
-│  │ • RUNNING          │       │ • PARQUET      │       │ • ADMIN        │       │
-│  │ • SUCCEEDED        │       │ • LOG          │       │ • ANALYST      │       │
-│  │ • FAILED           │       │                │       │ • VIEWER       │       │
-│  └────────────────────┘       └────────────────┘       └────────────────┘       │
-└──────────────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  🔍 ÍNDICES OPTIMIZADOS                                                          │
-│                                                                                  │
-│  AnalysisJob:                                                                    │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  • INDEX (tenant_id, period_month)  → Queries dashboard por periodo        │ │
-│  │  • INDEX (tenant_id, status)        → Filtrar jobs por estado              │ │
-│  │  • ORDER BY created_at DESC         → Obtener último job                   │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                  │
-│  AnalysisSnapshot:                                                               │
-│  ┌────────────────────────────────────────────────────────────────────────────┐ │
-│  │  • UNIQUE (tenant_id, period_month) → Un snapshot por periodo/tenant       │ │
-│  │  • INDEX (job_id)                   → Buscar por job                       │ │
-│  └────────────────────────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│  📦 ESTRUCTURA JSON - metrics (AnalysisSnapshot)                                 │
-│                                                                                  │
-│  {                                                                               │
-│    "total_personal_asignado": 14708,                                            │
-│    "total_servicio_vivo": 13237.94,                                             │
-│    "diferencia_total": 1470.06,                                                 │
-│    "cobertura_porcentaje": 90.01,                                               │
-│    "total_registros": 5576,                                                     │
-│                                                                                  │
-│    "by_estado": [                                                                │
-│      {"estado": "SOBRECARGA", "count": 2500, "pa": 8000, "sv": 6000},          │
-│      {"estado": "FALTA", "count": 1800, "pa": 4500, "sv": 5000},               │
-│      ...                                                                        │
-│    ],                                                                            │
-│                                                                                  │
-│    "by_cliente": [                                                               │
-│      {                                                                           │
-│        "nombre": "SOUTHERN PERU COPPER",                                        │
-│        "grupo": "GRUPO MINERO",                                                 │
-│        "pa": 484, "sv": 366.69,                                                 │
-│        "diferencia": 117.31,                                                    │
-│        "cobertura": 131.99,                                                     │
-│        "estado": "SOBRECARGA"                                                   │
-│      },                                                                          │
-│      ...                                                                        │
-│    ],                                                                            │
-│                                                                                  │
-│    "by_zona": [                                                                  │
-│      {"zona": "REGION AREQUIPA", "pa": 1100, "sv": 950},                        │
-│      {"zona": "ZONA C1", "pa": 800, "sv": 750},                                 │
-│      ...                                                                        │
-│    ],                                                                            │
-│                                                                                  │
-│    "filtros_disponibles": {                                                      │
-│      "macrozona": ["ZONA CENTRO", "REGION SUR", ...],                          │
-│      "zona": ["ZONA C1", "ZONA C2", "REGION AREQUIPA", ...],                   │
-│      "compania": ["Liderman Servicios S.A.C.", ...],                           │
-│      "grupo": ["GRUPO GLORIA", "GRUPO BRECA", ...],                            │
-│      "sector": ["CIUDAD", "MINAS"],                                            │
-│      "gerente": ["JOSE PAZOS", "MIGUEL LOYOLA", ...]                           │
-│    }                                                                             │
-│  }                                                                               │
-└──────────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🔐 Consideraciones de Seguridad por Capa
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                        SEGURIDAD POR CAPA                                        │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-  FRONTEND                    API                       DATABASE
-  ────────                    ───                       ────────
-  
-  • CSRF Token en forms      • Autenticación Django    • UUID como PK
-  • Validación client-side   • Permisos por Tenant     • Índices optimizados
-  • XSS prevention           • Rate limiting           • Queries parametrizadas
-  • Content Security Policy  • Validación de archivos  • Aislamiento por tenant
-                             • CORS configurado        
-                             • Logging de acciones     
-```
+## 🔐 Seguridad e Integridad
+- **Aislamiento S3**: Los buckets de MinIO están configurados de forma privada. El acceso solo es posible vía Presigned URLs generadas por el servidor.
+- **Postgres Indexing**: Se utilizan índices sobre `(tenant_id, period_month)` y `(job_id)` para asegurar que las búsquedas de archivos y métricas sean constantes (O(1) o O(log n)) independientemente del volumen de datos.
 
 ---
 
 ## 📈 Escalabilidad
-
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                        CONSIDERACIONES DE ESCALABILIDAD                          │
-└─────────────────────────────────────────────────────────────────────────────────┘
-
-  ACTUAL (MVP)                          FUTURO (Producción)
-  ────────────                          ───────────────────
-  
-  • SQLite                    →         • PostgreSQL
-  • Procesamiento síncrono    →         • Celery + Redis (async)
-  • Archivos en disco local   →         • S3 / Azure Blob Storage
-  • Single server             →         • Docker Swarm / Kubernetes
-  • Django dev server         →         • Gunicorn + Nginx
-```
+- **Horizontal**: Los `Celery Workers` pueden escalarse de forma independiente para procesar múltiples cargas simultáneas.
+- **Vertical**: El uso de `Polars` permite procesar archivos de 1M+ de filas utilizando múltiples hilos (Multi-threading) de forma nativa.
 
 ---
 
-*Documento generado el 26 de Diciembre de 2025*
+*Documentación actualizada: 05 de Enero de 2026*
