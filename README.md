@@ -13,6 +13,8 @@ Sistema web para el análisis comparativo entre **Personal Asignado (PA)** y **S
 - [Tecnologías](#-tecnologías)
 - [Instalación](#-instalación)
 - [Uso](#-uso)
+- [Reporte de Costos AWS](docs/AWS_COST_REPORT.md)
+- [Manual de Usuario](docs/USER_MANUAL.md)
 - [API Endpoints](#-api-endpoints)
 - [Estructura del Proyecto](#-estructura-del-proyecto)
 - [Diagramas](#-diagramas)
@@ -273,6 +275,8 @@ Project_PAvsSV/
 Ver documentación detallada en:
 - [Arquitectura y Flujos](docs/ARCHITECTURE.md)
 - [Documentación API](docs/API.md)
+- [Reporte de Costos AWS](docs/AWS_COST_REPORT.md)
+- [Manual de Usuario](docs/USER_MANUAL.md)
 
 ---
 

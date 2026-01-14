@@ -386,7 +386,51 @@ Cada acción crítica se registra con:
 
 ---
 
+## Componentes de Seguridad Implementados
+
+### Middlewares de Seguridad (`pavssv_server/middleware.py`)
+
+| Middleware | Función |
+|------------|---------|
+| `SecurityHeadersMiddleware` | Añade CSP, X-Frame-Options, Referrer-Policy |
+| `IPRateLimitMiddleware` | Rate limiting por IP y endpoint |
+| `AuditLoggingMiddleware` | Logging de acciones críticas |
+| `RequestSanitizationMiddleware` | Sanitización de inputs |
+
+### Validación de Archivos (`api_v1/validators.py`)
+
+- Validación de extensiones permitidas (.csv, .xlsx, .xls)
+- Verificación de magic bytes
+- Sanitización de nombres de archivo
+- Detección de contenido malicioso
+- Límite de tamaño (50 MB)
+
+### Gestión de Secretos (`pavssv_server/secrets.py`)
+
+- Soporte para AWS Secrets Manager en producción
+- Fallback a variables de entorno en desarrollo
+- Caché de secretos para mejor rendimiento
+
+### Infraestructura AWS (`aws-security-infrastructure.yaml`)
+
+- VPC con subnets privadas
+- WAF con reglas de protección
+- S3 con encriptación
+- Secrets Manager
+- IAM roles con mínimos privilegios
+
+---
+
+## Documentación Adicional
+
+- [Checklist de Despliegue Seguro](SECURITY_DEPLOYMENT_CHECKLIST.md)
+- [Reporte de Costos AWS](AWS_COST_REPORT.md)
+- [Manual de Usuario](USER_MANUAL.md)
+
+---
+
 ## Soporte
 
 Para reportar vulnerabilidades de seguridad, contactar a:
 - Email: seguridad@liderman.com.pe
+

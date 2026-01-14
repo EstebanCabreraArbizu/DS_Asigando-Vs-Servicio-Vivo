@@ -1,0 +1,367 @@
+# Configuración de TestSprite para PA vs SV
+# TestSprite es una herramienta de testing automatizado que genera tests basados en IA
+
+# Configuración general del proyecto
+project:
+  name: "PA vs SV - Comparador de Archivos"
+  language: python
+  framework: django
+  version: "5.1"
+
+# Configuración de entorno
+environment:
+  python_version: "3.11"
+  django_settings_module: "pavssv_server.settings"
+  working_directory: "./server"
+  
+  # Variables de entorno para tests
+  env_vars:
+    DJANGO_DEBUG: "0"
+    USE_SQLITE: "1"
+    SECRET_KEY: "test-secret-key-for-testing-only-not-for-production"
+    ALLOWED_HOSTS: "localhost,127.0.0.1,testserver"
+
+# Configuración de tests
+test:
+  # Framework de testing
+  runner: pytest
+  
+  # Directorio de tests
+  test_directory: "../tests"
+  
+  # Patrones de archivos de test
+  test_patterns:
+    - "test_*.py"
+    - "*_test.py"
+  
+  # Configuración de pytest
+  pytest:
+    args:
+      - "-v"
+      - "--tb=short"
+      - "--strict-markers"
+    plugins:
+      - pytest-django
+      - pytest-cov
+      - pytest-asyncio
+
+# Configuración de cobertura
+coverage:
+  enabled: true
+  minimum_threshold: 70
+  exclude_patterns:
+    - "*/migrations/*"
+    - "*/tests/*"
+    - "*/__pycache__/*"
+    - "*/admin.py"
+  
+  # Módulos a cubrir
+  include:
+    - "api_v1"
+    - "pavssv_server"
+    - "dashboard"
+    - "tenants"
+
+# Tests de seguridad (Security Testing)
+security_tests:
+  enabled: true
+  
+  # Autenticación
+  authentication:
+    - name: "JWT Token Validation"
+      endpoint: "/api/v1/auth/login/"
+      method: POST
+      test_cases:
+        - description: "Login con credenciales válidas"
+          input:
+            username: "testuser"
+            password: "SecurePassword123!"
+          expected:
+            status_code: 200
+            response_contains: ["access", "refresh"]
+        
+        - description: "Login con credenciales inválidas"
+          input:
+            username: "testuser"
+            password: "wrongpassword"
+          expected:
+            status_code: 401
+        
+        - description: "Login sin credenciales"
+          input: {}
+          expected:
+            status_code: 400
+    
+    - name: "Protected Endpoint Access"
+      endpoint: "/api/v1/users/me/"
+      method: GET
+      test_cases:
+        - description: "Acceso sin token"
+          headers: {}
+          expected:
+            status_code: 401
+        
+        - description: "Acceso con token inválido"
+          headers:
+            Authorization: "Bearer invalid_token"
+          expected:
+            status_code: 401
+  
+  # Rate Limiting
+  rate_limiting:
+    - name: "Login Rate Limit"
+      endpoint: "/api/v1/auth/login/"
+      method: POST
+      max_requests: 5
+      time_window: 60
+      expected_status_after_limit: 429
+    
+    - name: "API Rate Limit"
+      endpoint: "/api/v1/"
+      method: GET
+      max_requests: 100
+      time_window: 60
+      expected_status_after_limit: 429
+  
+  # Validación de archivos
+  file_validation:
+    - name: "File Extension Validation"
+      endpoint: "/api/v1/analysis/upload/"
+      method: POST
+      test_cases:
+        - description: "Archivo CSV válido"
+          file:
+            name: "test.csv"
+            content: "id,name\n1,test"
+          expected:
+            status_code: [200, 201]
+        
+        - description: "Archivo EXE rechazado"
+          file:
+            name: "malware.exe"
+            content: "MZ"
+          expected:
+            status_code: 400
+        
+        - description: "Archivo PHP rechazado"
+          file:
+            name: "backdoor.php"
+            content: "<?php echo 'hack'; ?>"
+          expected:
+            status_code: 400
+    
+    - name: "File Size Validation"
+      endpoint: "/api/v1/analysis/upload/"
+      method: POST
+      test_cases:
+        - description: "Archivo vacío rechazado"
+          file:
+            name: "empty.csv"
+            content: ""
+          expected:
+            status_code: 400
+    
+    - name: "Malicious Content Detection"
+      endpoint: "/api/v1/analysis/upload/"
+      method: POST
+      test_cases:
+        - description: "CSV con PHP injection"
+          file:
+            name: "data.csv"
+            content: "name\n<?php system('rm -rf /'); ?>"
+          expected:
+            status_code: 400
+        
+        - description: "CSV con XSS"
+          file:
+            name: "data.csv"
+            content: "name\n<script>alert('xss')</script>"
+          expected:
+            status_code: 400
+  
+  # Injection Prevention
+  injection_prevention:
+    - name: "SQL Injection Prevention"
+      test_cases:
+        - description: "Query param con SQL injection"
+          endpoint: "/api/v1/analysis/?search=' OR '1'='1"
+          expected:
+            status_code: [400, 403]
+        
+        - description: "UNION SELECT attack"
+          endpoint: "/api/v1/analysis/?search=UNION SELECT * FROM users"
+          expected:
+            status_code: [400, 403]
+    
+    - name: "XSS Prevention"
+      test_cases:
+        - description: "Script tag en query"
+          endpoint: "/api/v1/analysis/?name=<script>alert(1)</script>"
+          expected:
+            status_code: [400, 403]
+        
+        - description: "JavaScript protocol"
+          endpoint: "/api/v1/analysis/?url=javascript:alert(1)"
+          expected:
+            status_code: [400, 403]
+    
+    - name: "Path Traversal Prevention"
+      test_cases:
+        - description: "Directory traversal en path"
+          endpoint: "/api/v1/files/../../../etc/passwd"
+          expected:
+            status_code: [400, 403, 404]
+  
+  # Headers de seguridad
+  security_headers:
+    - name: "Security Headers Presence"
+      endpoint: "/api/v1/health/"
+      method: GET
+      expected_headers:
+        - name: "X-Content-Type-Options"
+          value: "nosniff"
+        - name: "X-Frame-Options"
+          value: "DENY"
+        - name: "X-XSS-Protection"
+          value: "1; mode=block"
+        - name: "Referrer-Policy"
+          value: "strict-origin-when-cross-origin"
+
+# Tests de lógica de negocio (Business Logic Testing)
+business_logic_tests:
+  enabled: true
+  
+  # Tests de API
+  api_tests:
+    - name: "Health Check"
+      endpoint: "/api/v1/health/"
+      method: GET
+      expected:
+        status_code: 200
+        response_format: json
+    
+    - name: "User Profile"
+      endpoint: "/api/v1/users/me/"
+      method: GET
+      requires_auth: true
+      expected:
+        status_code: 200
+        response_contains: ["username", "email"]
+    
+    - name: "Analysis List"
+      endpoint: "/api/v1/analysis/"
+      method: GET
+      requires_auth: true
+      expected:
+        status_code: 200
+        response_format: json
+  
+  # Tests de flujo de trabajo
+  workflow_tests:
+    - name: "Complete Analysis Flow"
+      steps:
+        - action: login
+          endpoint: "/api/v1/auth/login/"
+          save_token: true
+        
+        - action: upload
+          endpoint: "/api/v1/analysis/upload/"
+          file: "test_data.csv"
+          expected_status: [200, 201]
+        
+        - action: analyze
+          endpoint: "/api/v1/analysis/compare/"
+          expected_status: [200, 202]
+        
+        - action: get_results
+          endpoint: "/api/v1/analysis/{analysis_id}/"
+          expected_status: 200
+
+# Tests de rendimiento (Performance Testing)
+performance_tests:
+  enabled: false  # Habilitar en staging
+  
+  load_test:
+    concurrent_users: 10
+    duration_seconds: 60
+    ramp_up_seconds: 10
+    
+    endpoints:
+      - path: "/api/v1/health/"
+        method: GET
+        weight: 50
+      
+      - path: "/api/v1/analysis/"
+        method: GET
+        requires_auth: true
+        weight: 30
+      
+      - path: "/api/v1/auth/login/"
+        method: POST
+        weight: 20
+  
+  thresholds:
+    response_time_p95: 500  # ms
+    response_time_p99: 1000  # ms
+    error_rate: 1  # percentage
+
+# Fixtures y datos de prueba
+fixtures:
+  # Usuario de prueba
+  users:
+    - username: testuser
+      email: test@example.com
+      password: SecurePassword123!
+    
+    - username: staffuser
+      email: staff@example.com
+      password: StaffUser123!
+      is_staff: true
+  
+  # Archivos de prueba
+  test_files:
+    - name: valid_data.csv
+      content: |
+        id,name,department,salary
+        1,John Doe,Engineering,75000
+        2,Jane Smith,Marketing,65000
+        3,Bob Johnson,Sales,55000
+    
+    - name: malformed.csv
+      content: |
+        id,name
+        1,"unclosed quote
+        2,test
+    
+    - name: large_file.csv
+      generator: random
+      rows: 10000
+      columns: ["id", "name", "value", "date"]
+
+# Configuración de reportes
+reporting:
+  format: html
+  output_directory: "./test_reports"
+  
+  include:
+    - coverage_report
+    - security_scan_results
+    - performance_metrics
+  
+  notifications:
+    on_failure:
+      - type: console
+      - type: file
+        path: "./test_results.log"
+
+# Hooks personalizados
+hooks:
+  before_all:
+    - command: "python manage.py migrate --run-syncdb"
+    - command: "python manage.py collectstatic --noinput"
+  
+  before_each:
+    - command: "python manage.py flush --no-input"
+  
+  after_all:
+    - command: "python manage.py flush --no-input"

@@ -45,6 +45,12 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",  # CORS - debe ir antes de CommonMiddleware
+    # Middlewares de seguridad personalizados
+    "pavssv_server.middleware.RequestSanitizationMiddleware",  # Sanitización de inputs
+    "pavssv_server.middleware.IPRateLimitMiddleware",  # Rate limiting por IP
+    "pavssv_server.middleware.SecurityHeadersMiddleware",  # Headers CSP y seguridad
+    "pavssv_server.middleware.AuditLoggingMiddleware",  # Logging de auditoría
+    # Middlewares estándar de Django
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -189,6 +195,30 @@ else:
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # =============================================================================
+# CACHE CONFIGURATION - Redis
+# =============================================================================
+# Usar Redis para el cache (rate limiting, sessions, etc.)
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+        "KEY_PREFIX": "pavssv",
+        "TIMEOUT": 300,  # 5 minutos por defecto
+    }
+}
+
+# Fallback a cache local si Redis no está disponible (desarrollo)
+if os.getenv("USE_SQLITE") == "1":
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "unique-snowflake",
+        }
+    }
+
+# =============================================================================
 # REST FRAMEWORK & JWT AUTHENTICATION
 # =============================================================================
 REST_FRAMEWORK = {
@@ -306,6 +336,49 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # =============================================================================
+# CONTENT SECURITY POLICY (CSP)
+# =============================================================================
+# Configuración de CSP para prevenir XSS, clickjacking y otros ataques
+# NOTA: El dashboard usa Tailwind CSS y ECharts desde CDN, se deben permitir
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_SCRIPT_SRC = (
+    "'self'",
+    "https://cdn.tailwindcss.com",  # Tailwind CSS
+    "https://cdn.jsdelivr.net",  # ECharts y otras librerías
+    "'unsafe-inline'",  # Necesario para scripts inline del dashboard
+    "'unsafe-eval'",  # Necesario para Tailwind JIT
+)
+CSP_STYLE_SRC = (
+    "'self'",
+    "'unsafe-inline'",  # Necesario para estilos inline del dashboard
+    "https://cdn.tailwindcss.com",  # Tailwind CSS
+    "https://fonts.googleapis.com",  # Google Fonts
+)
+CSP_IMG_SRC = ("'self'", "data:", "https:")
+CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com")
+CSP_CONNECT_SRC = (
+    "'self'",
+    "https://cdn.tailwindcss.com",  # Para cargar Tailwind
+    "https://cdn.jsdelivr.net",  # Para cargar ECharts
+)
+CSP_FRAME_ANCESTORS = ("'none'",)
+CSP_FORM_ACTION = ("'self'",)
+CSP_BASE_URI = ("'self'",)
+CSP_OBJECT_SRC = ("'none'",)
+
+# Referrer Policy - No enviar información sensible en referer
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+# Permissions Policy (anteriormente Feature Policy)
+PERMISSIONS_POLICY = {
+    "geolocation": [],
+    "microphone": [],
+    "camera": [],
+    "payment": [],
+    "usb": [],
+}
+
+# =============================================================================
 # CELERY CONFIGURATION
 # =============================================================================
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
@@ -316,8 +389,11 @@ CELERY_TASK_ALWAYS_EAGER = DEBUG
 CELERY_TASK_EAGER_PROPAGATES = DEBUG
 
 # =============================================================================
-# LOGGING
+# LOGGING - Configuración de logs de seguridad y auditoría
 # =============================================================================
+LOG_DIR = BASE_DIR / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
@@ -326,11 +402,43 @@ LOGGING = {
             "format": "{levelname} {asctime} {module} {process:d} {thread:d} {message}",
             "style": "{",
         },
+        "audit": {
+            "format": "{asctime} | {levelname} | {message}",
+            "style": "{",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+        "security": {
+            "format": "[SECURITY] {asctime} | {levelname} | {name} | {message}",
+            "style": "{",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
             "formatter": "verbose",
+        },
+        "audit_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOG_DIR / "audit.log"),
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 10,
+            "formatter": "audit",
+        },
+        "security_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOG_DIR / "security.log"),
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 10,
+            "formatter": "security",
+        },
+        "error_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(LOG_DIR / "error.log"),
+            "maxBytes": 10 * 1024 * 1024,  # 10 MB
+            "backupCount": 5,
+            "formatter": "verbose",
+            "level": "ERROR",
         },
     },
     "root": {
@@ -339,13 +447,30 @@ LOGGING = {
     },
     "loggers": {
         "django": {
-            "handlers": ["console"],
+            "handlers": ["console", "error_file"],
             "level": os.getenv("DJANGO_LOG_LEVEL", "INFO"),
+            "propagate": False,
+        },
+        "django.security": {
+            "handlers": ["console", "security_file"],
+            "level": "WARNING",
             "propagate": False,
         },
         "jobs": {
             "handlers": ["console"],
             "level": "DEBUG" if DEBUG else "INFO",
+            "propagate": False,
+        },
+        # Logger de auditoría para acciones críticas
+        "audit": {
+            "handlers": ["console", "audit_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        # Logger de seguridad para eventos de seguridad
+        "security": {
+            "handlers": ["console", "security_file"],
+            "level": "WARNING",
             "propagate": False,
         },
     },

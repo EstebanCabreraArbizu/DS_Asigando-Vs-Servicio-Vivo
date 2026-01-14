@@ -2,6 +2,7 @@ Django>=5.1,<5.2
 djangorestframework>=3.15,<3.16
 celery>=5.4,<5.5
 redis>=5.1,<6
+django-redis>=5.4,<6
 psycopg2-binary>=2.9,<3
 python-dotenv>=1.0,<2
 
@@ -17,6 +18,10 @@ boto3>=1.34,<2
 
 # Security
 argon2-cffi>=23.1,<24
+# Servidor de producción
+gunicorn>=22.0,<23
+# AWS Secrets Manager (para producción)
+# boto3 ya está incluido arriba
 
 # Data Processing (moved from root requirements)
 polars>=1.0,<2

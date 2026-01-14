@@ -1,0 +1,491 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PA vs SV - Infraestructura de Seguridad AWS (WAF, Secrets, VPC)'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - production
+      - staging
+    Description: Ambiente de despliegue
+  
+  ProjectName:
+    Type: String
+    Default: pavssv
+    Description: Nombre del proyecto
+
+Resources:
+  # =============================================================================
+  # VPC Y NETWORKING SEGURO
+  # =============================================================================
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-vpc-${Environment}
+
+  # Subnets privadas para la aplicación
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-private-1
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-private-2
+
+  # Subnets públicas para el Load Balancer
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: 10.0.101.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-public-1
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: 10.0.102.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-public-2
+
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-igw
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  # =============================================================================
+  # SECURITY GROUPS
+  # =============================================================================
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Application Load Balancer
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS from anywhere
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: HTTP (redirect to HTTPS)
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-alb-sg
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for application containers
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8001
+          ToPort: 8001
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: Traffic from ALB only
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-app-sg
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS database
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref AppSecurityGroup
+          Description: PostgreSQL from app only
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}-db-sg
+
+  # =============================================================================
+  # AWS WAF - WEB APPLICATION FIREWALL
+  # =============================================================================
+  WebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub ${ProjectName}-waf-${Environment}
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      Description: WAF rules for PA vs SV API
+      Rules:
+        # Regla 1: Rate Limiting Global
+        - Name: RateLimitRule
+          Priority: 1
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 2000  # 2000 requests por 5 minutos por IP
+              AggregateKeyType: IP
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimitRule
+
+        # Regla 2: Rate Limiting estricto para login
+        - Name: LoginRateLimitRule
+          Priority: 2
+          Action:
+            Block: {}
+          Statement:
+            RateBasedStatement:
+              Limit: 100  # 100 intentos de login por 5 minutos
+              AggregateKeyType: IP
+              ScopeDownStatement:
+                ByteMatchStatement:
+                  SearchString: /api/v1/auth/login
+                  FieldToMatch:
+                    UriPath: {}
+                  PositionalConstraint: STARTS_WITH
+                  TextTransformations:
+                    - Priority: 0
+                      Type: LOWERCASE
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: LoginRateLimitRule
+
+        # Regla 3: AWS Managed Rules - Amenazas comunes
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 3
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesCommonRuleSet
+
+        # Regla 4: AWS Managed Rules - SQL Injection
+        - Name: AWSManagedRulesSQLiRuleSet
+          Priority: 4
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesSQLiRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesSQLiRuleSet
+
+        # Regla 5: AWS Managed Rules - Bad Inputs (XSS, path traversal)
+        - Name: AWSManagedRulesKnownBadInputsRuleSet
+          Priority: 5
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesKnownBadInputsRuleSet
+
+        # Regla 6: Bloquear IPs maliciosas conocidas
+        - Name: AWSManagedRulesAmazonIpReputationList
+          Priority: 6
+          OverrideAction:
+            None: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAmazonIpReputationList
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesAmazonIpReputationList
+
+        # Regla 7: Bloquear requests con cuerpo demasiado grande
+        - Name: BlockLargeBody
+          Priority: 7
+          Action:
+            Block: {}
+          Statement:
+            SizeConstraintStatement:
+              ComparisonOperator: GT
+              Size: 52428800  # 50 MB
+              FieldToMatch:
+                Body:
+                  OversizeHandling: MATCH
+              TextTransformations:
+                - Priority: 0
+                  Type: NONE
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: BlockLargeBody
+
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub ${ProjectName}-waf
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # =============================================================================
+  # AWS SECRETS MANAGER
+  # =============================================================================
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${ProjectName}/${Environment}/database
+      Description: Database credentials for PA vs SV
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "pavssv_admin"}'
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  DjangoSecretKey:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${ProjectName}/${Environment}/django-secret-key
+      Description: Django SECRET_KEY for PA vs SV
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  JWTSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${ProjectName}/${Environment}/jwt-secret
+      Description: JWT signing key for PA vs SV
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  S3Credentials:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub ${ProjectName}/${Environment}/s3-credentials
+      Description: S3 access credentials for PA vs SV
+      SecretString: !Sub |
+        {
+          "access_key": "${S3AccessKey}",
+          "secret_key": "${S3SecretKey}",
+          "region": "${AWS::Region}",
+          "bucket_inputs": "${ProjectName}-inputs-${Environment}",
+          "bucket_artifacts": "${ProjectName}-artifacts-${Environment}",
+          "bucket_exports": "${ProjectName}-exports-${Environment}"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # =============================================================================
+  # S3 BUCKETS CON ENCRIPTACIÓN
+  # =============================================================================
+  InputsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-inputs-${Environment}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-artifacts-${Environment}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  ExportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${ProjectName}-exports-${Environment}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireExports
+            Status: Enabled
+            ExpirationInDays: 7  # Exportaciones expiran en 7 días
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # =============================================================================
+  # IAM ROLE PARA LA APLICACIÓN
+  # =============================================================================
+  AppTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectName}-task-role-${Environment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${ProjectName}-*-${Environment}
+                  - !Sub arn:aws:s3:::${ProjectName}-*-${Environment}/*
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ProjectName}/${Environment}/*
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  VPCId:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${ProjectName}-vpc-id
+
+  WebACLArn:
+    Description: WAF Web ACL ARN (asociar al ALB)
+    Value: !GetAtt WebACL.Arn
+    Export:
+      Name: !Sub ${ProjectName}-waf-arn
+
+  DatabaseSecretArn:
+    Description: Database credentials secret ARN
+    Value: !Ref DatabaseSecret
+    Export:
+      Name: !Sub ${ProjectName}-db-secret-arn
+
+  AppTaskRoleArn:
+    Description: IAM Role ARN for ECS tasks
+    Value: !GetAtt AppTaskRole.Arn
+    Export:
+      Name: !Sub ${ProjectName}-task-role-arn
+
+  InputsBucketName:
+    Description: S3 bucket for input files
+    Value: !Ref InputsBucket
+
+  ArtifactsBucketName:
+    Description: S3 bucket for artifacts
+    Value: !Ref ArtifactsBucket
+
+  ExportsBucketName:
+    Description: S3 bucket for exports
+    Value: !Ref ExportsBucket
