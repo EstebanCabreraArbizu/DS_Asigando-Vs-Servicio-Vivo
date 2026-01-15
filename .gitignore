@@ -17,5 +17,4 @@ server/staticfiles/
 *.json
 tests/test_determinism_result.txt
 *.playwright-mcp/
-*.testsprite_tests/
 server/testsprite_tests/
