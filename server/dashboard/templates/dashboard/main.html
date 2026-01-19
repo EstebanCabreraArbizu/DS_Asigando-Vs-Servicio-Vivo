@@ -872,7 +872,7 @@
             document.getElementById('kpi-diff').textContent = formatNumber(kpis.diferencia_total);
             document.getElementById('kpi-coverage').textContent = `${kpis.cobertura_porcentaje}%`;
             document.getElementById('kpi-diff-pct').textContent = `${kpis.cobertura_diferencial || 0}%`;
-            document.getElementById('kpi-servicios').textContent = formatNumber(kpis.total_servicios);
+            document.getElementById('kpi-servicios').textContent = formatInteger(kpis.total_servicios);
         }
 
         // ===== ACTUALIZAR FILTROS =====
@@ -942,7 +942,7 @@
                                 position: 'top',
                                 color: '#ff133f',
                                 fontWeight: 700,
-                                formatter: (p) => formatNumber(p.value)
+                                formatter: (p) => formatInteger(p.value)
                             }
                         },
                         {
@@ -991,7 +991,7 @@
                                 position: 'right',
                                 color: '#ff133f',
                                 fontWeight: 700,
-                                formatter: (p) => formatNumber(p.value)
+                                formatter: (p) => formatInteger(p.value)
                             }
                         },
                         {
@@ -1046,7 +1046,7 @@
                                 position: 'top',
                                 color: '#ff2a57',
                                 fontWeight: 700,
-                                formatter: (p) => formatNumber(p.value)
+                                formatter: (p) => formatInteger(p.value)
                             }
                         },
                         {
@@ -1152,7 +1152,7 @@
                                 position: 'right',
                                 color: '#ff133f',
                                 fontWeight: 700,
-                                formatter: (p) => formatNumber(p.value)
+                                formatter: (p) => formatInteger(p.value)
                             }
                         },
                         {
@@ -1203,7 +1203,7 @@
                                 position: 'top',
                                 color: '#ff133f',
                                 fontWeight: 700,
-                                formatter: (p) => formatNumber(p.value)
+                                formatter: (p) => formatInteger(p.value)
                             }
                         },
                         {
@@ -1668,7 +1668,7 @@
                     <td class="px-3 py-2 truncate max-w-[200px]">${row.Cliente_Final || '-'}</td>
                     <td class="px-3 py-2 truncate max-w-[150px]">${row.Unidad_Str || '-'}</td>
                     <td class="px-3 py-2 truncate max-w-[150px]">${row.Servicio_Limpio || '-'}</td>
-                    <td class="px-3 py-2 text-right font-medium text-blue-600">${formatNumber(row.Personal_Real || 0)}</td>
+                    <td class="px-3 py-2 text-right font-medium text-blue-600">${formatInteger(row.Personal_Real || 0)}</td>
                     <td class="px-3 py-2 text-right font-medium text-green-600">${formatNumber(row.Personal_Estimado || 0)}</td>
                     <td class="px-3 py-2 text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
                     <td class="px-3 py-2 text-center"><span class="status-badge estado-${row.Estado}">${row.Estado || '-'}</span></td>
