@@ -146,8 +146,8 @@
         <div class="container mx-auto px-4 py-4">
             <div class="flex items-center justify-between flex-wrap gap-4">
                 <div class="flex items-center gap-4">
-                    <img src="https://www.liderman.com.pe/images/logo.png" alt="Liderman"
-                        class="h-10 bg-white p-1 rounded" onerror="this.style.display='none'">
+                    <img src="{% static 'dashboard/Logo.png' %}" alt="Logo" class="h-10 bg-white p-1 rounded"
+                        onerror="this.style.display='none'">
                     <div>
                         <h1 class="text-xl font-bold">Dashboard PA vs SV</h1>
                         <p class="text-blue-200 text-xs">Análisis de Personal Asignado vs Servicio Vivo</p>
@@ -179,7 +179,7 @@
                             <p class="font-medium text-blue-50">{{ user.username }}</p>
                             <p class="text-blue-200">{{ permissions.role_display }}</p>
                         </div>
-                        <form id="logout-form" action="{% url 'admin:logout' %}" method="post" class="hidden">
+                        <form id="logout-form" action="{% url 'dashboard:logout' %}" method="post" class="hidden">
                             {% csrf_token %}
                         </form>
                         <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
@@ -867,7 +867,7 @@
 
         // ===== ACTUALIZAR KPIs =====
         function updateKPIs(kpis) {
-            document.getElementById('kpi-pa').textContent = formatNumber(kpis.total_personal_asignado);
+            document.getElementById('kpi-pa').textContent = formatInteger(kpis.total_personal_asignado);
             document.getElementById('kpi-sv').textContent = formatNumber(kpis.total_servicio_vivo);
             document.getElementById('kpi-diff').textContent = formatNumber(kpis.diferencia_total);
             document.getElementById('kpi-coverage').textContent = `${kpis.cobertura_porcentaje}%`;
@@ -1262,7 +1262,7 @@
                 return `<tr class="hover:bg-gray-50">
                     <td class="px-4 py-2 text-sm">${row.nombre || row.Cliente_Final || '-'}</td>
                     <td class="px-4 py-2 text-sm text-gray-500">-</td>
-                    <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatNumber(pa)}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatInteger(pa)}</td>
                     <td class="px-4 py-2 text-sm text-right font-medium text-green-600">${formatNumber(sv)}</td>
                     <td class="px-4 py-2 text-sm text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
                     <td class="px-4 py-2 text-sm text-right">${cob}%</td>
@@ -1288,7 +1288,7 @@
                 totalDiff += diff;
             });
 
-            document.getElementById('total-pa-cli').textContent = formatNumber(totalPa);
+            document.getElementById('total-pa-cli').textContent = formatInteger(totalPa);
             document.getElementById('total-sv-cli').textContent = formatNumber(totalSv);
             document.getElementById('total-diff-cli').textContent = formatNumber(totalDiff);
             document.getElementById('total-cob-cli').textContent = totalSv > 0 ? (totalPa / totalSv * 100).toFixed(2) + '%' : '-';
@@ -1340,7 +1340,7 @@
                 const estado = getEstadoFromDiff(pa, sv);
                 return `<tr class="hover:bg-gray-50">
                     <td class="px-4 py-2 text-sm">${row.nombre || row.Unidad_Str || '-'}</td>
-                    <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatNumber(pa)}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatInteger(pa)}</td>
                     <td class="px-4 py-2 text-sm text-right font-medium text-green-600">${formatNumber(sv)}</td>
                     <td class="px-4 py-2 text-sm text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
                     <td class="px-4 py-2 text-sm text-right">${cob}%</td>
@@ -1366,7 +1366,7 @@
                 totalDiff += diff;
             });
 
-            document.getElementById('total-pa-uni').textContent = formatNumber(totalPa);
+            document.getElementById('total-pa-uni').textContent = formatInteger(totalPa);
             document.getElementById('total-sv-uni').textContent = formatNumber(totalSv);
             document.getElementById('total-diff-uni').textContent = formatNumber(totalDiff);
             document.getElementById('total-cob-uni').textContent = totalSv > 0 ? (totalPa / totalSv * 100).toFixed(2) + '%' : '-';
@@ -1418,7 +1418,7 @@
                 const estado = getEstadoFromDiff(pa, sv);
                 return `<tr class="hover:bg-gray-50">
                     <td class="px-4 py-2 text-sm">${row.nombre || row.Servicio_Limpio || '-'}</td>
-                    <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatNumber(pa)}</td>
+                    <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatInteger(pa)}</td>
                     <td class="px-4 py-2 text-sm text-right font-medium text-green-600">${formatNumber(sv)}</td>
                     <td class="px-4 py-2 text-sm text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
                     <td class="px-4 py-2 text-sm text-right">${cob}%</td>
@@ -1444,7 +1444,7 @@
                 totalDiff += diff;
             });
 
-            document.getElementById('total-pa-srv').textContent = formatNumber(totalPa);
+            document.getElementById('total-pa-srv').textContent = formatInteger(totalPa);
             document.getElementById('total-sv-srv').textContent = formatNumber(totalSv);
             document.getElementById('total-diff-srv').textContent = formatNumber(totalDiff);
             document.getElementById('total-cob-srv').textContent = totalSv > 0 ? (totalPa / totalSv * 100).toFixed(2) + '%' : '-';
@@ -1511,7 +1511,7 @@
                     return `<tr class="hover:bg-gray-50">
                         <td class="px-4 py-2 text-sm">${row.nombre || row.Cliente_Final || '-'}</td>
                         <td class="px-4 py-2 text-sm text-gray-500">-</td>
-                        <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatNumber(pa)}</td>
+                        <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatInteger(pa)}</td>
                         <td class="px-4 py-2 text-sm text-right font-medium text-green-600">${formatNumber(sv)}</td>
                         <td class="px-4 py-2 text-sm text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
                         <td class="px-4 py-2 text-sm text-right">${cob}%</td>
@@ -1519,7 +1519,7 @@
                         <td class="px-4 py-2 text-center"><span class="status-badge estado-${estado}">${estado}</span></td>
                     </tr>`;
                 }).join('') : `<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Sin resultados</td></tr>`;
-                document.getElementById('total-pa-cli').textContent = formatNumber(totalPa);
+                document.getElementById('total-pa-cli').textContent = formatInteger(totalPa);
                 document.getElementById('total-sv-cli').textContent = formatNumber(totalSv);
                 document.getElementById('total-diff-cli').textContent = formatNumber(totalDiff);
                 document.getElementById('total-cob-cli').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
@@ -1546,7 +1546,7 @@
                     totalDiff += diff;
                     return `<tr class="hover:bg-gray-50">
                         <td class="px-4 py-2 text-sm">${row.nombre || row.Unidad_Str || '-'}</td>
-                        <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatNumber(pa)}</td>
+                        <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatInteger(pa)}</td>
                         <td class="px-4 py-2 text-sm text-right font-medium text-green-600">${formatNumber(sv)}</td>
                         <td class="px-4 py-2 text-sm text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
                         <td class="px-4 py-2 text-sm text-right">${cob}%</td>
@@ -1554,7 +1554,7 @@
                         <td class="px-4 py-2 text-center"><span class="status-badge estado-${estado}">${estado}</span></td>
                     </tr>`;
                 }).join('') : `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">Sin resultados</td></tr>`;
-                document.getElementById('total-pa-uni').textContent = formatNumber(totalPa);
+                document.getElementById('total-pa-uni').textContent = formatInteger(totalPa);
                 document.getElementById('total-sv-uni').textContent = formatNumber(totalSv);
                 document.getElementById('total-diff-uni').textContent = formatNumber(totalDiff);
                 document.getElementById('total-cob-uni').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
@@ -1581,7 +1581,7 @@
                     totalDiff += diff;
                     return `<tr class="hover:bg-gray-50">
                         <td class="px-4 py-2 text-sm">${row.nombre || row.Servicio_Limpio || '-'}</td>
-                        <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatNumber(pa)}</td>
+                        <td class="px-4 py-2 text-sm text-right font-medium text-blue-600">${formatInteger(pa)}</td>
                         <td class="px-4 py-2 text-sm text-right font-medium text-green-600">${formatNumber(sv)}</td>
                         <td class="px-4 py-2 text-sm text-right font-medium ${diff >= 0 ? 'text-orange-600' : 'text-red-600'}">${formatNumber(diff)}</td>
                         <td class="px-4 py-2 text-sm text-right">${cob}%</td>
@@ -1589,7 +1589,7 @@
                         <td class="px-4 py-2 text-center"><span class="status-badge estado-${estado}">${estado}</span></td>
                     </tr>`;
                 }).join('') : `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">Sin resultados</td></tr>`;
-                document.getElementById('total-pa-srv').textContent = formatNumber(totalPa);
+                document.getElementById('total-pa-srv').textContent = formatInteger(totalPa);
                 document.getElementById('total-sv-srv').textContent = formatNumber(totalSv);
                 document.getElementById('total-diff-srv').textContent = formatNumber(totalDiff);
                 document.getElementById('total-cob-srv').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
@@ -1874,6 +1874,13 @@
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
             }).format(n);
+        }
+        function formatInteger(n) {
+            if (n == null) return '-';
+            return new Intl.NumberFormat('es-PE', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(Math.round(n));
         }
         function formatMetricName(key) {
             const names = { 'total_personal_asignado': 'Personal Asignado', 'total_servicio_vivo': 'Servicio Vivo', 'coincidencias': 'Coincidencias', 'diferencia_total': 'Diferencia', 'cobertura_porcentaje': 'Cobertura %' };

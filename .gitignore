@@ -10,6 +10,19 @@ server/staticfiles/
 *.csv
 *.zip
 *.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+*.ico
+*.pdf
+*.doc
+*.docx
+*.xls
+*.ppt
+*.pptx
+*.txt
 *.log
 *.parquet
 .env
@@ -17,4 +30,5 @@ server/staticfiles/
 *.json
 tests/test_determinism_result.txt
 *.playwright-mcp/
+*.testsprite_tests/
 server/testsprite_tests/

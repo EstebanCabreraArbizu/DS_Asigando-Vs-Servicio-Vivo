@@ -11,6 +11,8 @@ from django.views.generic import TemplateView
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth import authenticate, login, logout
+from django.shortcuts import redirect, render
 
 from jobs.models import AnalysisJob, AnalysisSnapshot, JobStatus, Artifact, ArtifactKind
 from tenants.models import Tenant, Membership, MembershipRole
@@ -156,7 +158,7 @@ def get_user_permissions(user):
 class UploadView(LoginRequiredMixin, TemplateView):
     """Vista para subir archivos Excel con drag & drop."""
     template_name = "dashboard/upload.html"
-    login_url = "/admin/login/"
+    login_url = "/dashboard/login/"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -180,7 +182,7 @@ class UploadView(LoginRequiredMixin, TemplateView):
 class DashboardView(LoginRequiredMixin, TemplateView):
     """Vista principal del dashboard con gráficos y KPIs."""
     template_name = "dashboard/main.html"
-    login_url = "/admin/login/"
+    login_url = "/dashboard/login/"
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1327,3 +1329,39 @@ class ServicesAPIView(View):
             df = df.filter(gerente_filter)
         
         return df
+
+
+class CustomLoginView(View):
+    """Vista de login personalizada que no expone el Django Admin."""
+    template_name = "dashboard/login.html"
+    
+    def get(self, request):
+        if request.user.is_authenticated:
+            return redirect('dashboard:main')
+        return render(request, self.template_name)
+    
+    def post(self, request):
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            login(request, user)
+            return redirect('dashboard:main')
+        else:
+            return render(request, self.template_name, {
+                'error': 'Usuario o contraseña incorrectos'
+            })
+
+
+class CustomLogoutView(View):
+    """Vista de logout personalizada."""
+    
+    def post(self, request):
+        logout(request)
+        return redirect('dashboard:login')
+    
+    def get(self, request):
+        logout(request)
+        return redirect('dashboard:login')

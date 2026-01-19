@@ -7,6 +7,10 @@ from . import views
 app_name = "dashboard"
 
 urlpatterns = [
+    # Autenticación personalizada
+    path("login/", views.CustomLoginView.as_view(), name="login"),
+    path("logout/", views.CustomLogoutView.as_view(), name="logout"),
+    
     # Vista principal del dashboard
     path("", views.DashboardView.as_view(), name="main"),
     
