@@ -248,8 +248,8 @@ REST_FRAMEWORK = {
 
 # JWT Configuration
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
     "UPDATE_LAST_LOGIN": True,
@@ -309,6 +309,10 @@ if DEBUG:
 # =============================================================================
 # SECURITY SETTINGS
 # =============================================================================
+# Expiración de sesiones y CSRF (1 día) siempre activos
+SESSION_COOKIE_AGE = 86400  # 1 día en segundos
+CSRF_COOKIE_AGE = 86400     # 1 día en segundos
+
 if not DEBUG:
     # HTTPS/SSL
     SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "true").lower() == "true"
