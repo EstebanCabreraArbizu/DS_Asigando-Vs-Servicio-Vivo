@@ -146,7 +146,7 @@
         <div class="container mx-auto px-4 py-4">
             <div class="flex items-center justify-between flex-wrap gap-4">
                 <div class="flex items-center gap-4">
-                    <img src="{% static 'dashboard/Logo.png' %}" alt="Liderman" class="h-10 bg-white p-1 rounded">
+                    <img src="{% static 'dashboard/Logo.jpeg' %}" alt="Liderman" class="h-16 bg-white p-1 rounded">
                     <div>
                         <h1 class="text-xl font-bold">Dashboard PA vs SV</h1>
                         <p class="text-blue-200 text-xs">Análisis de Personal Asignado vs Servicio Vivo</p>
@@ -154,7 +154,7 @@
                 </div>
                 <div class="flex items-center gap-3 flex-wrap">
                     <div class="flex items-center gap-2">
-                        <label class="text-sm text-blue-100">Periodo:</label>
+                        <label class="text-sm text-white-100">Periodo:</label>
                         <select id="period-select"
                             class="text-gray-800 px-3 py-1.5 rounded border-0 text-sm focus:ring-2 focus:ring-blue-300">
                             <option value="">Cargando...</option>
@@ -195,7 +195,7 @@
     <div class="bg-white border-b shadow-sm">
         <div class="container mx-auto px-4 py-3">
             <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-                <span class="text-sm font-medium text-gray-600">Filtros:</span>
+                <span class="text-sm font-medium text-white-600">Filtros:</span>
                 <select id="filter-macrozona"
                     class="filter-select text-xs sm:text-sm border rounded px-2 py-1 min-w-[120px] sm:min-w-[150px]">
                     <option value="">Macro Zona - Todas</option>
@@ -640,6 +640,13 @@
         </div>
     </div>
 
+    <script>
+        // Configuración dinámica para JavaScript
+        window.DashboardConfig = {
+            // Eliminar el último componente para obtener la raíz del dashboard (ej: /dashboard/)
+            apiRoot: "{% url 'dashboard:main' %}"
+        };
+    </script>
     <script src="{% static 'dashboard/main.js' %}"></script>
 </body>
 
