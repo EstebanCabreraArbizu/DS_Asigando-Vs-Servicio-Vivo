@@ -290,8 +290,7 @@
                         {% empty %}
                         <tr>
                             <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                                No hay análisis previos. {% if permissions.can_upload %}Â¡Sube tus archivos para
-                                comenzar!{% endif %}
+                                No hay análisis previos. {% if permissions.can_upload %}¡Sube tus archivos para comenzar!{% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -329,11 +328,11 @@
     <script>
         // Configuracion con permisos del usuario
         window.USER_PERMISSIONS = {
-            canUpload: {{ permissions.can_upload | yesno: "true,false" }},
-        canDelete: { { permissions.can_delete | yesno: "true,false" } },
-        canExport: { { permissions.can_export | yesno: "true,false" } },
-        canView: { { permissions.can_view | yesno: "true,false" } },
-        role: "{{ permissions.role }}"
+		canUpload: {{ permissions.can_upload|yesno:"true,false" }},
+        	canDelete: {{ permissions.can_delete|yesno:"true,false" }},
+        	canExport: {{ permissions.can_export|yesno:"true,false" }},
+        	canView: {{ permissions.can_view|yesno:"true,false" }},
+        	role: "{{ permissions.role }}"
         };
 
         // Configuración dinámica para API
