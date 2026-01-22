@@ -24,12 +24,13 @@ El sistema puede desplegarse de dos formas principales en AWS:
 
 | Servicio | Componente | Configuración | Costo Est. (USD) |
 |----------|------------|---------------|------------------|
-| **Compute (Fargate)** | Web + Worker | 2 tasks (0.5 vCPU, 1GB RAM) | ~$35.00 |
+| **Compute (Fargate) o EC2** | Web + Worker | 2 tasks (0.5 vCPU, 1GB RAM) | ~$35.00 |
 | **Database (RDS)** | PostgreSQL | db.t4g.micro (20GB SSD) | ~$25.00 |
-| **Cache (ElastiCache)**| Redis | cache.t4g.micro | ~$12.00 |
+| **~~Cache (ElastiCache)~~**| ~~Redis~~ | ~~cache.t4g.micro~~ | ~~~$12.00~~ |
 | **Storage (S3)** | Archivos | 50GB Standard + 10k PUT/GET | ~$3.00 |
-| **Networking** | ALB | 1 ALB + 10GB Data Transfer | ~$20.00 |
+| **~~Networking~~** | ~~ALB~~ | ~~1 ALB + 10GB Data Transfer~~ | ~~~$20.00~~ |
 | **Total Estimado** | | | **~$95.00 / mes** |
+|**Total real para producción (VPS y AWS)**| | | **~$65.00 / mes (Sin cache o Networking)** |
 
 ---
 

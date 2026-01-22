@@ -12,12 +12,12 @@ Sistema web para el análisis comparativo entre **Personal Asignado (PA)** y **S
 - [Arquitectura](#-arquitectura)
 - [Tecnologías](#-tecnologías)
 - [Instalación](#-instalación)
+- [Despliegue a Producción](#-despliegue-a-producción) 🆕
+- [Seguridad](#-seguridad) 🆕
 - [Uso](#-uso)
-- [Reporte de Costos AWS](docs/AWS_COST_REPORT.md)
-- [Manual de Usuario](docs/USER_MANUAL.md)
+- [Documentación Adicional](#-documentación-adicional)
 - [API Endpoints](#-api-endpoints)
 - [Estructura del Proyecto](#-estructura-del-proyecto)
-- [Diagramas](#-diagramas)
 
 ---
 
@@ -158,6 +158,20 @@ python manage.py runserver 8001
 
 ---
 
+## 🚀 Despliegue a Producción
+
+Para guías detalladas sobre cómo desplegar en AWS (ECS/Fargate o EC2) o servidores on-premise, consulte:
+
+👉 **[Guía de Despliegue a Producción](docs/DEPLOYMENT_GUIDE.md)**
+
+Esta guía incluye:
+- Arquitectura de referencia en AWS.
+- Estimación de costos.
+- Pasos paso a paso para infraestructura y Docker.
+- Checklist de seguridad.
+
+---
+
 ## 📖 Uso
 
 ### 1. Subir Archivos
@@ -260,8 +274,12 @@ Project_PAvsSV/
 │   └── docker-compose.yml
 │
 ├── docs/                       # Documentación
-│   ├── ARCHITECTURE.md
-│   ├── API.md
+│   ├── ARCHITECTURE.md         # Arquitectura del sistema
+│   ├── API.md                  # Documentación de API
+│   ├── DEPLOYMENT_GUIDE.md     # 🚀 Guía de Despliegue
+│   ├── SECURITY.md             # 🔐 Guía de Seguridad
+│   ├── USER_MANUAL.md          # Manual de Usuario
+│   ├── AWS_COST_REPORT.md      # Reporte de Costos
 │   └── images/
 │
 ├── venv/                       # Entorno virtual
@@ -270,13 +288,15 @@ Project_PAvsSV/
 
 ---
 
-## 📊 Diagramas
+## 📚 Documentación Adicional
 
-Ver documentación detallada en:
-- [Arquitectura y Flujos](docs/ARCHITECTURE.md)
-- [Documentación API](docs/API.md)
-- [Reporte de Costos AWS](docs/AWS_COST_REPORT.md)
-- [Manual de Usuario](docs/USER_MANUAL.md)
+- **[Arquitectura y Flujos](docs/ARCHITECTURE.md)**: Detalles técnicos del funcionamiento interno.
+- **[Guía de Despliegue](docs/DEPLOYMENT_GUIDE.md)**: Instrucciones para producción.
+- **[Guía de Seguridad](docs/SECURITY.md)**: Autenticación, roles y mejores prácticas.
+- **[Checklist de Despliegue Seguro](docs/SECURITY_DEPLOYMENT_CHECKLIST.md)**: Lista de verificación antes de salir a producción.
+- **[Documentación API](docs/API.md)**: Referencia de endpoints.
+- **[Reporte de Costos AWS](docs/AWS_COST_REPORT.md)**: Estimación de costos de infraestructura.
+- **[Manual de Usuario](docs/USER_MANUAL.md)**: Guía para usuarios finales.
 
 ---
 
@@ -337,6 +357,8 @@ docker-compose exec web python manage.py createsuperuser
 - Aislamiento de datos por tenant
 - Validación de archivos en upload
 - CSRF protection habilitado
+
+👉 **Ver [Guía de Seguridad Completa](docs/SECURITY.md)** para más detalles sobre autenticación JWT, configuración de CORS y manejo de secretos.
 
 ---
 
