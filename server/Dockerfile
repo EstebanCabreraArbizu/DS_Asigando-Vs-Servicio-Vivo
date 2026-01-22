@@ -23,7 +23,24 @@ RUN groupadd --gid 1000 appuser && \
 WORKDIR /app
 
 # =============================================================================
-# Stage de construcción (instala dependencias)
+# Stage de construcción de Assets (Node.js)
+# =============================================================================
+FROM node:18-slim AS assets-builder
+WORKDIR /app/server
+COPY server/package*.json ./
+COPY server/scripts/ ./scripts/
+COPY server/dashboard/static/dashboard/src/ ./dashboard/static/dashboard/src/
+# Si necesitas Tailwind, copia también el config y el input css
+COPY server/tailwind.config.js ./
+COPY server/dashboard/static/dashboard/tailwind.input.css ./dashboard/static/dashboard/tailwind.input.css
+
+RUN npm install
+RUN npm run build:js
+# Si tienes un script de tailwind, ejecútalo aquí también
+# RUN npm run build:css
+
+# =============================================================================
+# Stage de construcción de Python (instala dependencias)
 # =============================================================================
 FROM base AS builder
 
@@ -62,6 +79,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copiar código de la aplicación
 COPY --chown=appuser:appuser . /app
+# Sobrescribir con los assets ofuscados y compilados
+COPY --from=assets-builder --chown=appuser:appuser /app/server/dashboard/static/dashboard/main.js /app/server/dashboard/static/dashboard/main.js
+COPY --from=assets-builder --chown=appuser:appuser /app/server/dashboard/static/dashboard/upload.js /app/server/dashboard/static/dashboard/upload.js
 
 # Crear directorios necesarios con permisos correctos
 RUN mkdir -p /app/server/logs /app/server/media && \
