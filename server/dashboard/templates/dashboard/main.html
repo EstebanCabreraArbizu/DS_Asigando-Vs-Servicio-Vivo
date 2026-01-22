@@ -6,7 +6,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard PA vs SV - {{ tenant.name|default:"Sistema" }}</title>
-    <link rel="stylesheet" href="{% static 'dashboard/tailwind.prod.css' %}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'neon-red': '#ff133f',
+                        'neon-red-strong': '#ff2a57',
+                        'neon-cyan': '#00cfdc',
+                        'neon-cyan-soft': 'rgba(0, 207, 220, 0.34)',
+                        'neon-amber': '#f8d57c',
+                    },
+                    fontFamily: {
+                        display: ['Orbitron', 'Tourney', 'system-ui', 'sans-serif'],
+                        body: ['Rajdhani', 'system-ui', 'sans-serif'],
+                        mono: ['Syne Mono', 'monospace'],
+                    },
+                },
+            },
+        }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
         .kpi-card {
@@ -335,7 +355,7 @@
         <div id="tab-clientes" class="tab-content hidden">
             <div class="bg-white rounded-lg shadow">
                 <div class="p-4 border-b flex justify-between items-center">
-                    <h3 class="font-semibold text-gray-800">👥 Análisis por Cliente</h3>
+                    <h3 class="font-semibold text-white-800">👥 Análisis por Cliente</h3>
                     <input type="text" id="search-cliente" placeholder="Buscar cliente..."
                         class="px-3 py-1.5 border rounded text-sm w-64">
                 </div>
@@ -404,7 +424,7 @@
         <div id="tab-unidades" class="tab-content hidden">
             <div class="bg-white rounded-lg shadow">
                 <div class="p-4 border-b flex justify-between items-center">
-                    <h3 class="font-semibold text-gray-800">🏢 Análisis por Unidad</h3>
+                    <h3 class="font-semibold text-white-800">🏢 Análisis por Unidad</h3>
                     <input type="text" id="search-unidad" placeholder="Buscar unidad..."
                         class="px-3 py-1.5 border rounded text-sm w-64">
                 </div>
@@ -470,7 +490,7 @@
         <div id="tab-servicios" class="tab-content hidden">
             <div class="bg-white rounded-lg shadow">
                 <div class="p-4 border-b flex justify-between items-center">
-                    <h3 class="font-semibold text-gray-800">🔧 Análisis por Servicio</h3>
+                    <h3 class="font-semibold text-white-800">🔧 Análisis por Servicio</h3>
                     <input type="text" id="search-servicio" placeholder="Buscar servicio..."
                         class="px-3 py-1.5 border rounded text-sm w-64">
                 </div>
@@ -557,7 +577,7 @@
         <div id="tab-detalle" class="tab-content hidden">
             <div class="bg-white rounded-lg shadow">
                 <div class="p-4 border-b flex justify-between items-center flex-wrap gap-3">
-                    <h3 class="font-semibold text-gray-800">📋 Detalle Completo de Servicios</h3>
+                    <h3 class="font-semibold text-white-800">📋 Detalle Completo de Servicios</h3>
                     <div class="flex items-center gap-3">
                         <input type="text" id="search-input" placeholder="Buscar..."
                             class="px-3 py-1.5 border rounded text-sm w-64">

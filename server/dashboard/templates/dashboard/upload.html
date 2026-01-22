@@ -6,7 +6,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Subir Archivos - PA vs SV</title>
-    <link rel="stylesheet" href="{% static 'dashboard/tailwind.prod.css' %}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'neon-red': '#ff133f',
+                        'neon-red-strong': '#ff2a57',
+                        'neon-cyan': '#00cfdc',
+                        'neon-cyan-soft': 'rgba(0, 207, 220, 0.34)',
+                        'neon-amber': '#f8d57c',
+                    },
+                    fontFamily: {
+                        display: ['Orbitron', 'Tourney', 'system-ui', 'sans-serif'],
+                        body: ['Rajdhani', 'system-ui', 'sans-serif'],
+                        mono: ['Syne Mono', 'monospace'],
+                    },
+                },
+            },
+        }
+    </script>
     <link rel="stylesheet" href="{% static 'dashboard/main.css' %}">
 </head>
 
@@ -329,10 +349,10 @@
     <script>
         // Configuracion con permisos del usuario
         window.USER_PERMISSIONS = {
-            canUpload: {{ permissions.can_upload | yesno: "true,false" }},
-        canDelete: { { permissions.can_delete | yesno: "true,false" } },
-        canExport: { { permissions.can_export | yesno: "true,false" } },
-        canView: { { permissions.can_view | yesno: "true,false" } },
+            canUpload: {{ permissions.can_upload|yesno:"true,false" }},
+        canDelete: {{ permissions.can_delete|yesno:"true,false" }},
+        canExport: {{ permissions.can_export|yesno:"true,false" }},
+        canView: {{ permissions.can_view|yesno:"true,false" }},
         role: "{{ permissions.role }}"
         };
 
