@@ -1,7 +1,7 @@
 """
 Dashboard URLs - Rutas para el dashboard de métricas y visualización.
 """
-from django.urls import path
+from django.urls import path, include
 from . import views
 
 app_name = "dashboard"
@@ -27,4 +27,7 @@ urlpatterns = [
     path("api/clients/", views.ClientsAPIView.as_view(), name="api_clients"),
     path("api/units/", views.UnitsAPIView.as_view(), name="api_units"),
     path("api/services/", views.ServicesAPIView.as_view(), name="api_services"),
+    
+    # API endpoints del core (Jobs, etc) montados bajo dashboard
+    path("api/v1/", include("api_v1.urls")),
 ]

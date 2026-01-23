@@ -84,18 +84,21 @@ COPY --from=assets-builder --chown=appuser:appuser /app/server/dashboard/static/
 COPY --from=assets-builder --chown=appuser:appuser /app/server/dashboard/static/dashboard/upload.js /app/server/dashboard/static/dashboard/upload.js
 
 # Crear directorios necesarios con permisos correctos
-RUN mkdir -p /app/server/logs /app/server/media && \
-    chown -R appuser:appuser /app/server/logs /app/server/media && \
-    chmod 750 /app/server/logs /app/server/media
+RUN mkdir -p /app/server/logs /app/server/media /app/server/staticfiles && \
+    chown -R appuser:appuser /app/server/logs /app/server/media /app/server/staticfiles && \
+    chmod 750 /app/server/logs /app/server/media /app/server/staticfiles
 
 WORKDIR /app/server
+
+# Collect static files for WhiteNoise (run as root before switching user)
+RUN python manage.py collectstatic --noinput
 
 # Cambiar al usuario no-root
 USER appuser
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8001/api/v1/health/ || exit 1
+    CMD curl -f http://localhost:8001/dashboard/api/v1/health/ || exit 1
 
 # Exponer puerto (no root puede usar puertos > 1024)
 EXPOSE 8001

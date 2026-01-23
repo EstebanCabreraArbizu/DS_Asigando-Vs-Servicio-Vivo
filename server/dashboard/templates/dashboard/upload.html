@@ -289,7 +289,7 @@
                                 <div class="flex items-center gap-3">
                                     {% if job.status == 'succeeded' %}
                                     {% if permissions.can_export %}
-                                    <a href="{% url 'jobs:job_download_excel' job.id %}"
+                                    <a href="{% url 'dashboard:jobs:job_download_excel' job.id %}"
                                         class="text-blue-600 hover:underline" title="Descargar Excel">Descargar
                                         Excel</a>
                                     {% endif %}
@@ -322,7 +322,7 @@
             <!-- Quick Download Latest -->
             {% if recent_jobs and permissions.can_export %}
             <div class="mt-4 pt-4 border-t">
-                <a href="{% url 'jobs:job_latest_download' %}?tenant=default"
+                <a href="{% url 'dashboard:jobs:job_latest_download' %}?tenant=default"
                     class="inline-flex items-center gap-2 text-blue-600 hover:underline font-medium">
                     Descargar último Excel exitoso
                 </a>

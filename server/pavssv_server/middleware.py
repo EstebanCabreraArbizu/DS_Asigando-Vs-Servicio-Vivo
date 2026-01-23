@@ -344,8 +344,8 @@ class RequestSanitizationMiddleware(MiddlewareMixin):
         "; DROP ",       # SQL injection
     ]
     
-    # Tamaño máximo de request body (10 MB por defecto)
-    MAX_BODY_SIZE = 10 * 1024 * 1024
+    # Tamaño máximo de request body (Default Django + Fallback 50MB)
+    MAX_BODY_SIZE = getattr(settings, "DATA_UPLOAD_MAX_MEMORY_SIZE", 50 * 1024 * 1024)
     
     def process_request(self, request: HttpRequest) -> HttpResponse | None:
         # Verificar tamaño del body
