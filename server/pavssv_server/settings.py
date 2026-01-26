@@ -144,23 +144,41 @@ if USE_S3_STORAGE:
     AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "pavssv-artifacts")
     AWS_S3_ENDPOINT_URL = os.getenv("AWS_S3_ENDPOINT_URL")  # None para AWS S3 real
     AWS_S3_PUBLIC_URL = os.getenv("AWS_S3_PUBLIC_URL", AWS_S3_ENDPOINT_URL)
+    AWS_S3_ADDRESSING_STYLE = "path"  # Requerido para MinIO
     AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
     AWS_S3_SIGNATURE_VERSION = os.getenv("AWS_S3_SIGNATURE_VERSION", "s3v4")
     AWS_S3_FILE_OVERWRITE = os.getenv("AWS_S3_FILE_OVERWRITE", "false").lower() == "true"
-    AWS_DEFAULT_ACL = os.getenv("AWS_DEFAULT_ACL", "private")
+    # MinIO no soporta bien ACLs de AWS, mejor desactivarlas si se usa MinIO
+    AWS_DEFAULT_ACL = None if AWS_S3_ENDPOINT_URL else os.getenv("AWS_DEFAULT_ACL", "private")
     AWS_QUERYSTRING_AUTH = True  # URLs firmadas con expiración
     AWS_QUERYSTRING_EXPIRE = 3600  # 1 hora de validez para URLs firmadas
-    
+    AWS_S3_VERIFY = os.getenv("AWS_S3_VERIFY", "true").lower() == "true"
+
     # Buckets separados por tipo de archivo
     AWS_INPUTS_BUCKET = os.getenv("AWS_INPUTS_BUCKET", "pavssv-inputs")
     AWS_ARTIFACTS_BUCKET = os.getenv("AWS_ARTIFACTS_BUCKET", "pavssv-artifacts")
     AWS_EXPORTS_BUCKET = os.getenv("AWS_EXPORTS_BUCKET", "pavssv-exports")
     
     # Storage backends personalizados
+    # Opciones comunes para todos los backends S3
+    S3_COMMON_OPTIONS = {
+        "access_key": AWS_ACCESS_KEY_ID,
+        "secret_key": AWS_SECRET_ACCESS_KEY,
+        "endpoint_url": AWS_S3_ENDPOINT_URL,
+        "region_name": AWS_S3_REGION_NAME,
+        "signature_version": AWS_S3_SIGNATURE_VERSION,
+        "default_acl": AWS_DEFAULT_ACL,
+        "querystring_auth": AWS_QUERYSTRING_AUTH,
+        "querystring_expire": AWS_QUERYSTRING_EXPIRE,
+        "use_ssl": (AWS_S3_ENDPOINT_URL or "").startswith("https"),
+        "verify": AWS_S3_VERIFY,
+    }
+    
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
+                **S3_COMMON_OPTIONS,
                 "bucket_name": AWS_STORAGE_BUCKET_NAME,
             },
         },
@@ -170,18 +188,21 @@ if USE_S3_STORAGE:
         "inputs": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
+                **S3_COMMON_OPTIONS,
                 "bucket_name": AWS_INPUTS_BUCKET,
             },
         },
         "artifacts": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
+                **S3_COMMON_OPTIONS,
                 "bucket_name": AWS_ARTIFACTS_BUCKET,
             },
         },
         "exports": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
+                **S3_COMMON_OPTIONS,
                 "bucket_name": AWS_EXPORTS_BUCKET,
             },
         },
@@ -207,7 +228,17 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # CACHE CONFIGURATION - Redis
 # =============================================================================
 # Usar Redis para el cache (rate limiting, sessions, etc.)
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+# Formato con auth: redis://:password@host:port/db o redis://user:password@host:port/db
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+REDIS_DB = os.getenv("REDIS_DB", "0")
+
+# Construir URL con o sin autenticación
+if REDIS_PASSWORD:
+    REDIS_URL = os.getenv("REDIS_URL", f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
+else:
+    REDIS_URL = os.getenv("REDIS_URL", f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
 
 CACHES = {
     "default": {
