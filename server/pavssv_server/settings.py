@@ -147,7 +147,8 @@ if USE_S3_STORAGE:
     AWS_S3_ADDRESSING_STYLE = "path"  # Requerido para MinIO
     AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
     AWS_S3_SIGNATURE_VERSION = os.getenv("AWS_S3_SIGNATURE_VERSION", "s3v4")
-    AWS_S3_FILE_OVERWRITE = os.getenv("AWS_S3_FILE_OVERWRITE", "false").lower() == "true"
+    # Cambiado a True para evitar que Django chequee si el archivo existe (lo cual causa 403 en MinIO seguro)
+    AWS_S3_FILE_OVERWRITE = True 
     # MinIO no soporta bien ACLs de AWS, mejor desactivarlas si se usa MinIO
     AWS_DEFAULT_ACL = None if AWS_S3_ENDPOINT_URL else os.getenv("AWS_DEFAULT_ACL", "private")
     AWS_QUERYSTRING_AUTH = True  # URLs firmadas con expiración

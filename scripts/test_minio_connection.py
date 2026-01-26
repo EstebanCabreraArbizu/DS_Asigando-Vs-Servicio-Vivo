@@ -75,12 +75,28 @@ def test_minio_connection():
                 s3.head_bucket(Bucket=bucket_name)
                 print(f"[OK] Head Bucket '{bucket_name}' successful.")
                 
-                # 2. Put Object (Write Test)
+                # 2. Check NON-EXISTENT Object (Critical for Django get_available_name)
+                # Django checks if file exists. If this returns 403 instead of 404, Django crashes.
+                missing_key = f"non_existent_{uuid.uuid4()}.txt"
+                try:
+                    s3.head_object(Bucket=bucket_name, Key=missing_key)
+                    print(f"[WARNING] Head Object on missing key '{missing_key}' found an object! (Unexpected)")
+                except ClientError as e:
+                    code = e.response.get('Error', {}).get('Code')
+                    if code == "404":
+                        print(f"[OK] Head Object on missing key returned 404 (Correct behavior).")
+                    elif code == "403":
+                        print(f"[CRITICAL FAILURE] Head Object on missing key returned 403 Forbidden!")
+                        print("   -> This causes Django to crash. MinIO config needs s3:ListBucket permission or AWS_S3_FILE_OVERWRITE=True.")
+                    else:
+                        print(f"[INFO] Head Object on missing key returned {code}: {e}")
+
+                # 3. Put Object (Write Test)
                 test_file_key = "test_connection_file.txt"
                 s3.put_object(Bucket=bucket_name, Key=test_file_key, Body=b"test content")
                 print(f"[OK] Put Object '{test_file_key}' successful.")
                 
-                # 3. Head Object (Read/Existence Check - verifying the operation that failed in logs)
+                # 4. Head Object (Read/Existence Check - verifying the operation that failed in logs)
                 s3.head_object(Bucket=bucket_name, Key=test_file_key)
                 print(f"[OK] Head Object '{test_file_key}' successful.")
                 
