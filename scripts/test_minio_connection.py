@@ -22,10 +22,18 @@ def test_minio_connection():
     region = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
     verify = os.getenv("AWS_S3_VERIFY", "true").lower() == "true"
     
+    # Buckets to test
+    buckets = {
+        "Main": os.getenv("AWS_STORAGE_BUCKET_NAME", "pavssv-artifacts"),
+        "Inputs": os.getenv("AWS_INPUTS_BUCKET", "pavssv-inputs"),
+        "Artifacts": os.getenv("AWS_ARTIFACTS_BUCKET", "pavssv-artifacts"),
+        "Exports": os.getenv("AWS_EXPORTS_BUCKET", "pavssv-exports"),
+    }
+    
     print(f"Endpoint: {endpoint}")
     print(f"Access Key: {mask(access_key)}")
     print(f"Secret Key: {mask(secret_key)}")
-    print(f"Bucket: {bucket_name}")
+    print(f"Buckets to test: {list(buckets.values())}")
     print(f"Region: {region}")
     print(f"Verify SSL: {verify}")
     print("-----------------------------------")
@@ -55,20 +63,40 @@ def test_minio_connection():
     try:
         print(f"Attempting to list buckets at {endpoint}...")
         response = s3.list_buckets()
-        print("Successfully connected! Buckets found:")
+        print("Successfully connected! Buckets found on server:")
         for bucket in response['Buckets']:
             print(f" - {bucket['Name']}")
             
-        print(f"\nChecking specific bucket access: {bucket_name}")
-        # Try to head the bucket to check permissions
-        s3.head_bucket(Bucket=bucket_name)
-        print(f"Successfully accessed bucket '{bucket_name}'")
+        print("\n--- Testing Specific Buckets ---")
+        for label, bucket_name in buckets.items():
+            print(f"\nTurning to bucket: [{label}] -> {bucket_name}")
+            try:
+                # 1. Head Bucket (Check existence/permission)
+                s3.head_bucket(Bucket=bucket_name)
+                print(f"[OK] Head Bucket '{bucket_name}' successful.")
+                
+                # 2. Put Object (Write Test)
+                test_file_key = "test_connection_file.txt"
+                s3.put_object(Bucket=bucket_name, Key=test_file_key, Body=b"test content")
+                print(f"[OK] Put Object '{test_file_key}' successful.")
+                
+                # 3. Head Object (Read/Existence Check - verifying the operation that failed in logs)
+                s3.head_object(Bucket=bucket_name, Key=test_file_key)
+                print(f"[OK] Head Object '{test_file_key}' successful.")
+                
+                # Cleanup
+                s3.delete_object(Bucket=bucket_name, Key=test_file_key)
+                print(f"[OK] Delete Object '{test_file_key}' successful.")
+                
+            except ClientError as e:
+                print(f"[FAILED] Error interacting with bucket '{bucket_name}': {e}")
+                print(f"  Code: {e.response.get('Error', {}).get('Code')}")
+                print(f"  Message: {e.response.get('Error', {}).get('Message')}")
         
     except ClientError as e:
         print(f"\nCONNECTION FAILED: {e}")
         print(f"Error Code: {e.response.get('Error', {}).get('Code')}")
         print(f"Error Message: {e.response.get('Error', {}).get('Message')}")
-        print(f"HTTP Status Code: {e.response.get('ResponseMetadata', {}).get('HTTPStatusCode')}")
         
     except Exception as e:
         print(f"\nUNEXPECTED ERROR: {e}")
