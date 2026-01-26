@@ -95,6 +95,22 @@ def run_analysis_job(self, job_id: str) -> None:
     job.error_message = ""
     job.save(update_fields=["status", "error_message", "updated_at"])
 
+    # --- DEBUGGING START ---
+    import logging
+    logger = logging.getLogger(__name__)
+    try:
+        logger.info(f" Job ID: {job_id}")
+        logger.info(f" Field PA name: {job.input_personal_asignado.name}")
+        logger.info(f" Field PA storage: {job.input_personal_asignado.storage}")
+        # Intenta ver opciones del storage
+        if hasattr(job.input_personal_asignado.storage, "connection"):
+             client_meta = job.input_personal_asignado.storage.connection.meta
+             logger.info(f" Boto3 Endpoint: {client_meta.endpoint_url}")
+             logger.info(f" addressing_style (from storage options): {job.input_personal_asignado.storage.addressing_style}")
+    except Exception as e:
+        logger.error(f"Debug log error: {e}")
+    # --- DEBUGGING END ---
+
     try:
         pa_bytes = job.input_personal_asignado.read()
         sv_bytes = job.input_servicio_vivo.read()
