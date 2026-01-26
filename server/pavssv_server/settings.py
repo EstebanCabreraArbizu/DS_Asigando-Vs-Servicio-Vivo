@@ -427,8 +427,8 @@ PERMISSIONS_POLICY = {
 # =============================================================================
 # CELERY CONFIGURATION
 # =============================================================================
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
 CELERY_TASK_TRACK_STARTED = True
 # En desarrollo (DEBUG=True), ejecutar tasks sincrónicamente sin Redis
 CELERY_TASK_ALWAYS_EAGER = DEBUG
