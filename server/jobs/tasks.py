@@ -95,25 +95,52 @@ def run_analysis_job(self, job_id: str) -> None:
     job.error_message = ""
     job.save(update_fields=["status", "error_message", "updated_at"])
 
-    # --- DEBUGGING START ---
+    # --- DEBUGGING / ROBUST COMPATIBILITY ---
+    import boto3
     import logging
+    from botocore.config import Config
+    from django.conf import settings
+    
     logger = logging.getLogger(__name__)
-    try:
-        logger.info(f" Job ID: {job_id}")
-        logger.info(f" Field PA name: {job.input_personal_asignado.name}")
-        logger.info(f" Field PA storage: {job.input_personal_asignado.storage}")
-        # Intenta ver opciones del storage
-        if hasattr(job.input_personal_asignado.storage, "connection"):
-             client_meta = job.input_personal_asignado.storage.connection.meta
-             logger.info(f" Boto3 Endpoint: {client_meta.endpoint_url}")
-             logger.info(f" addressing_style (from storage options): {job.input_personal_asignado.storage.addressing_style}")
-    except Exception as e:
-        logger.error(f"Debug log error: {e}")
-    # --- DEBUGGING END ---
+
+    def read_file_content(file_field, field_name):
+        """Intenta leer usando el storage de Django, y si falla (403/404), usa boto3 directo."""
+        try:
+            logger.info(f"Probando leer {field_name} con storage default...")
+            return file_field.read()
+        except Exception as e:
+            logger.warning(f"Fallo lectura estándar de {field_name}: {e}. Intentando fallback manual con Boto3...")
+            
+            # Fallback manual para MinIO cuando django-storages falla
+            try:
+                session = boto3.session.Session()
+                s3_config = Config(signature_version='s3v4', s3={'addressing_style': 'path'})
+                
+                s3 = session.client(
+                    's3',
+                    endpoint_url=settings.AWS_S3_ENDPOINT_URL,
+                    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                    region_name=settings.AWS_S3_REGION_NAME,
+                    config=s3_config,
+                    verify=settings.AWS_S3_VERIFY
+                )
+                
+                bucket_name = file_field.storage.bucket_name
+                # El "name" del archivo suele ser la ruta relativa (key)
+                file_key = file_field.name
+                
+                logger.info(f"Boto3 Fallback: Descargando objeto s3://{bucket_name}/{file_key}")
+                response = s3.get_object(Bucket=bucket_name, Key=file_key)
+                return response['Body'].read()
+                
+            except Exception as e2:
+                logger.error(f"FATAL: Falló también el fallback manual para {field_name}: {e2}")
+                raise e  # Lanzar la excepción original para no ocultar la raíz
 
     try:
-        pa_bytes = job.input_personal_asignado.read()
-        sv_bytes = job.input_servicio_vivo.read()
+        pa_bytes = read_file_content(job.input_personal_asignado, "Personal Asignado")
+        sv_bytes = read_file_content(job.input_servicio_vivo, "Servicio Vivo")
 
         df_pa_raw = _read_excel_bytes_to_df(
             pa_bytes,
