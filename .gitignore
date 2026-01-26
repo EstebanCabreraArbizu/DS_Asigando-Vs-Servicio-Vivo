@@ -22,7 +22,6 @@ server/staticfiles/
 *.xls
 *.ppt
 *.pptx
-*.txt
 *.log
 *.parquet
 .env

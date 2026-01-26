@@ -30,3 +30,4 @@ gunicorn>=22.0,<23
 polars>=1.0,<2
 openpyxl>=3.1,<4
 xlsxwriter>=3.2,<4
+pandas==2.3.3
