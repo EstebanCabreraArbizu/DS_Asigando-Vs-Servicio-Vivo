@@ -168,9 +168,10 @@ if USE_S3_STORAGE:
         "region_name": AWS_S3_REGION_NAME,
         "signature_version": AWS_S3_SIGNATURE_VERSION,
         "default_acl": AWS_DEFAULT_ACL,
+        "addressing_style": AWS_S3_ADDRESSING_STYLE,
         "querystring_auth": AWS_QUERYSTRING_AUTH,
         "querystring_expire": AWS_QUERYSTRING_EXPIRE,
-        "use_ssl": (AWS_S3_ENDPOINT_URL or "").startswith("https"),
+        "use_ssl": AWS_S3_ENDPOINT_URL.startswith("https") if AWS_S3_ENDPOINT_URL else True,
         "verify": AWS_S3_VERIFY,
     }
     
