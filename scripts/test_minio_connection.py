@@ -1,5 +1,6 @@
 import os
 import boto3
+import uuid
 from botocore.exceptions import ClientError
 from dotenv import load_dotenv
 from pathlib import Path
