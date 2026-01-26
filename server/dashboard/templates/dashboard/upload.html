@@ -55,7 +55,7 @@
                         class="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition">
                         Ver Dashboard
                     </a>
-                    <form id="logout-form" action="{% url 'admin:logout' %}" method="post" class="hidden">
+                    <form id="logout-form" action="{% url 'dashboard:logout' %}" method="post" class="hidden">
                         {% csrf_token %}
                     </form>
                     <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
