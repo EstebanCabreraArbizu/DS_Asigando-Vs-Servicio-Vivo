@@ -24,7 +24,7 @@ server/staticfiles/
 *.pptx
 *.log
 *.parquet
-.env
+*.env
 *migrations/
 *.json
 tests/test_determinism_result.txt
@@ -32,3 +32,5 @@ tests/test_determinism_result.txt
 *.testsprite_tests/
 server/testsprite_tests/
 node_modules/
+server/.env
+server/.env.example
