@@ -4,6 +4,8 @@
  */
 
 // ===== ESTADO GLOBAL =====
+// Liderman theme chart text color (dark for white backgrounds)
+const CHART_TEXT_COLOR = '#2D3748';
 let currentPeriod = null;
 let currentPage = 1;
 let sortBy = 'Personal_Real';
@@ -297,10 +299,10 @@ function renderAllCharts(data) {
                     return res;
                 }
             },
-            legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: '#fff', fontSize: 10 } },
+            legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: CHART_TEXT_COLOR, fontSize: 10 } },
             grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
-            xAxis: { type: 'category', data: charts.by_estado.map(d => d.Estado || 'N/A'), axisLabel: { rotate: 30, fontSize: 10, color: '#fff' } },
-            yAxis: { type: 'value', axisLabel: { color: '#fff' }, splitLine: { lineStyle: { opacity: 0.1 } } },
+            xAxis: { type: 'category', data: charts.by_estado.map(d => d.Estado || 'N/A'), axisLabel: { rotate: 30, fontSize: 10, color: CHART_TEXT_COLOR } },
+            yAxis: { type: 'value', axisLabel: { color: CHART_TEXT_COLOR }, splitLine: { lineStyle: { opacity: 0.2 } } },
             series: [
                 {
                     name: 'PA',
@@ -346,10 +348,10 @@ function renderAllCharts(data) {
                     return res;
                 }
             },
-            legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: '#fff', fontSize: 10 } },
+            legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: CHART_TEXT_COLOR, fontSize: 10 } },
             grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
-            xAxis: { type: 'value', axisLabel: { color: '#fff' }, splitLine: { lineStyle: { opacity: 0.1 } } },
-            yAxis: { type: 'category', data: charts.by_cliente_top10.map(d => (d.nombre || '').substring(0, 25)), inverse: true, axisLabel: { fontSize: 10, color: '#fff' } },
+            xAxis: { type: 'value', axisLabel: { color: CHART_TEXT_COLOR }, splitLine: { lineStyle: { opacity: 0.2 } } },
+            yAxis: { type: 'category', data: charts.by_cliente_top10.map(d => (d.nombre || '').substring(0, 25)), inverse: true, axisLabel: { fontSize: 10, color: CHART_TEXT_COLOR } },
             series: [
                 {
                     name: 'PA',
@@ -395,16 +397,16 @@ function renderAllCharts(data) {
                     return res;
                 }
             },
-            legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: '#fff', fontSize: 10 } },
+            legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: CHART_TEXT_COLOR, fontSize: 10 } },
             grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
             xAxis: {
                 type: 'category', data: charts.by_zona.map(d => d.Zona_Display || 'Sin Zona'), axisLabel: {
                     rotate: 45,
                     fontSize: 10,
-                    color: '#fff'
+                    color: CHART_TEXT_COLOR
                 }
             },
-            yAxis: { type: 'value', axisLabel: { color: '#fff' }, splitLine: { lineStyle: { opacity: 0.1 } } },
+            yAxis: { type: 'value', axisLabel: { color: CHART_TEXT_COLOR }, splitLine: { lineStyle: { opacity: 0.2 } } },
             series: [
                 {
                     name: 'PA',
@@ -455,7 +457,7 @@ function renderAllCharts(data) {
                 top: 'center',
                 textStyle: {
                     fontSize: 10,
-                    color: '#fff'
+                    color: CHART_TEXT_COLOR
                 }
             },
             series: [{
@@ -463,7 +465,7 @@ function renderAllCharts(data) {
                 radius: ['30%', '60%'],
                 center: ['60%', '50%'],
                 data: charts.by_macrozona.map(d => ({ value: d.pa, name: d.Macrozona_SV || 'N/A' })),
-                label: { show: true, formatter: '{d}%', color: '#fff', fontWeight: 700 },
+                label: { show: true, formatter: '{d}%', color: CHART_TEXT_COLOR, fontWeight: 700 },
             }]
         });
     } else {
@@ -479,12 +481,12 @@ function renderAllCharts(data) {
                 return `${params.name}: <b>${formatNumber(params.value)}</b> (${params.percent}%)`;
             }
         },
-        legend: { bottom: 0, textStyle: { color: '#fff', fontSize: 10 } },
+        legend: { bottom: 0, textStyle: { color: CHART_TEXT_COLOR, fontSize: 10 } },
         series: [{
             type: 'pie',
             radius: ['40%', '70%'],
             avoidLabelOverlap: false,
-            label: { show: true, formatter: (p) => `${p.name}\n${formatNumber(p.value)} (${p.percent}%)`, color: '#fff', fontWeight: 700 },
+            label: { show: true, formatter: (p) => `${p.name}\n${formatNumber(p.value)} (${p.percent}%)`, color: CHART_TEXT_COLOR, fontWeight: 700 },
             data: [
                 { value: kpis.total_personal_asignado, name: 'Personal Asignado', itemStyle: { color: '#ff133f' } },
                 { value: kpis.total_servicio_vivo, name: 'Servicio Vivo', itemStyle: { color: '#00cfdc' } }
@@ -508,8 +510,8 @@ function renderAllCharts(data) {
                 }
             },
             grid: { left: '3%', right: '4%', bottom: '10%', containLabel: true },
-            xAxis: { type: 'value', axisLabel: { color: '#fff' }, splitLine: { lineStyle: { opacity: 0.1 } } },
-            yAxis: { type: 'category', data: charts.by_grupo.map(d => (d[grupoKey] || '').substring(0, 20)), inverse: true, axisLabel: { color: '#fff', fontSize: 10 } },
+            xAxis: { type: 'value', axisLabel: { color: CHART_TEXT_COLOR }, splitLine: { lineStyle: { opacity: 0.2 } } },
+            yAxis: { type: 'category', data: charts.by_grupo.map(d => (d[grupoKey] || '').substring(0, 20)), inverse: true, axisLabel: { color: CHART_TEXT_COLOR, fontSize: 10 } },
             series: [
                 {
                     name: 'PA',
@@ -558,10 +560,10 @@ function renderAllCharts(data) {
                     return res;
                 }
             },
-            legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: '#fff', fontSize: 10 } },
+            legend: { data: ['PA', 'SV'], bottom: 0, textStyle: { color: CHART_TEXT_COLOR, fontSize: 10 } },
             grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true },
-            xAxis: { type: 'category', data: charts.by_unidad_top10.map(d => (d.nombre || d.Unidad_Str || '').substring(0, 20)), axisLabel: { rotate: 45, fontSize: 10, color: '#fff' } },
-            yAxis: { type: 'value', axisLabel: { color: '#fff' }, splitLine: { lineStyle: { opacity: 0.1 } } },
+            xAxis: { type: 'category', data: charts.by_unidad_top10.map(d => (d.nombre || d.Unidad_Str || '').substring(0, 20)), axisLabel: { rotate: 45, fontSize: 10, color: CHART_TEXT_COLOR } },
+            yAxis: { type: 'value', axisLabel: { color: CHART_TEXT_COLOR }, splitLine: { lineStyle: { opacity: 0.2 } } },
             series: [
                 {
                     name: 'PA',
