@@ -345,10 +345,10 @@
     <script>
         // Configuracion con permisos del usuario
         window.USER_PERMISSIONS = {
-            canUpload: {{ permissions.can_upload|yesno:"true,false" }},
-        canDelete: {{ permissions.can_delete|yesno:"true,false" }},
-        canExport: {{ permissions.can_export|yesno:"true,false" }},
-        canView: {{ permissions.can_view|yesno:"true,false" }},
+            canUpload: {{ permissions.can_upload | yesno: "true,false" }},
+        canDelete: { { permissions.can_delete | yesno: "true,false" } },
+        canExport: { { permissions.can_export | yesno: "true,false" } },
+        canView: { { permissions.can_view | yesno: "true,false" } },
         role: "{{ permissions.role }}"
         };
 
