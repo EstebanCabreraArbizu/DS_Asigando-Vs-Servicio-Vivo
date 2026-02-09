@@ -28,15 +28,6 @@ from tenants.models import Tenant
 logger = logging.getLogger(__name__)
 
 
-class CsrfExemptSessionAuthentication(SessionAuthentication):
-    """
-    SessionAuthentication sin verificación CSRF.
-    Útil para APIs internas llamadas desde el dashboard.
-    """
-    def enforce_csrf(self, request):
-        return  # No enforce CSRF
-
-
 class IsAuthenticatedOrSessionAuth(IsAuthenticated):
     """
     Permite autenticación JWT o Session (para el dashboard).
@@ -138,7 +129,7 @@ class JobCreateView(APIView):
     Permisos: admin, coordinator, staff, superuser
     """
     # Permitir JWT o Session (sin CSRF para APIs internas)
-    authentication_classes = [JWTAuthentication, CsrfExemptSessionAuthentication]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticatedOrSessionAuth, CanManageFilesOrSession]
 
     def post(self, request):
@@ -190,7 +181,7 @@ class JobStatusView(APIView):
     
     GET /api/v1/jobs/<job_id>/status/
     """
-    authentication_classes = [JWTAuthentication, CsrfExemptSessionAuthentication]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticatedOrSessionAuth, CanViewAnalysisOrSession]
     
     def get(self, request, job_id: str):
@@ -212,7 +203,7 @@ class JobDeleteView(APIView):
     
     Permisos: admin only
     """
-    authentication_classes = [JWTAuthentication, CsrfExemptSessionAuthentication]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticatedOrSessionAuth, CanDeleteFilesOrSession]
     
     def delete(self, request, job_id: str):
@@ -257,7 +248,7 @@ class JobDownloadExcelView(APIView):
     
     Permisos: admin, coordinator, analyst
     """
-    authentication_classes = [JWTAuthentication, CsrfExemptSessionAuthentication]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticatedOrSessionAuth, CanExportDataOrSession]
     
     def get(self, request, job_id: str):
@@ -321,7 +312,7 @@ class JobLatestDownloadView(APIView):
     
     GET /api/v1/jobs/latest/download/?tenant=<slug>
     """
-    authentication_classes = [JWTAuthentication, CsrfExemptSessionAuthentication]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticatedOrSessionAuth, CanExportDataOrSession]
     
     def get(self, request):
@@ -392,7 +383,7 @@ class JobListView(APIView):
     GET /api/v1/jobs/?status=succeeded&limit=10
     POST /api/v1/jobs/
     """
-    authentication_classes = [JWTAuthentication, CsrfExemptSessionAuthentication]
+    authentication_classes = [JWTAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticatedOrSessionAuth, CanViewAnalysisOrSession]
     
     def get(self, request):

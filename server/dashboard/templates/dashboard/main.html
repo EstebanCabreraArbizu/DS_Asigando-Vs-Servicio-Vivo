@@ -6,24 +6,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard PA vs SV - {{ tenant.name|default:"Sistema" }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'liderman-red': '#D31332',
-                        'liderman-blue': '#00AEEF',
-                        'liderman-gray': '#333333',
-                    },
-                    fontFamily: {
-                        sans: ['Roboto', 'system-ui', 'sans-serif'],
-                    },
-                },
-            },
-        }
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="{% static 'dashboard/vendor/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'dashboard/utilities.css' %}">
+    <script src="{% static 'dashboard/vendor/echarts.min.js' %}"></script>
     <style>
         /* Base optimizations */
         .loading-overlay {

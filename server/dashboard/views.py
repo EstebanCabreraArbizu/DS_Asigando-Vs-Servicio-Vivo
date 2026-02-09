@@ -8,8 +8,6 @@ from django.db.models import Sum, Count, Avg
 from django.http import JsonResponse
 from django.views import View
 from django.views.generic import TemplateView
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth import authenticate, login, logout
 from django.shortcuts import redirect, render
@@ -165,10 +163,12 @@ def get_tenant_for_user(user, request=None):
     2. Header X-Tenant-ID
     3. Tenant por defecto del usuario
     4. Primer tenant del usuario
-    5. Fallback: tenant "default"
+    5. Fallback: tenant "default" (solo para usuarios autenticados)
+    
+    Retorna None si el usuario no está autenticado.
     """
     if not user or not user.is_authenticated:
-        return Tenant.objects.filter(slug="default").first()
+        return None
     
     if request:
         # 1. Query param (usado en links del dashboard)
@@ -279,8 +279,7 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         return context
 
 
-@method_decorator(csrf_exempt, name="dispatch")
-class MetricsAPIView(View):
+class MetricsAPIView(LoginRequiredJSONMixin, View):
     """API para obtener métricas del dashboard."""
     
     def get(self, request):
@@ -473,8 +472,7 @@ class MetricsAPIView(View):
         return []
 
 
-@method_decorator(csrf_exempt, name="dispatch")
-class PeriodsAPIView(View):
+class PeriodsAPIView(LoginRequiredJSONMixin, View):
     """API para obtener periodos disponibles."""
     
     def get(self, request):
@@ -517,8 +515,7 @@ class PeriodsAPIView(View):
         return JsonResponse({"periods": periods})
 
 
-@method_decorator(csrf_exempt, name="dispatch")
-class CompareAPIView(View):
+class CompareAPIView(LoginRequiredJSONMixin, View):
     """API para comparar dos periodos."""
     
     def get(self, request):
@@ -527,10 +524,18 @@ class CompareAPIView(View):
         period2 = request.GET.get("period2")
         
         if not period1 or not period2:
-            return JsonResponse({"error": "Se requieren period1 y period2"}, status=400)
+            return JsonResponse({"error": {"code": "invalid_param", "message": "Se requieren period1 y period2"}}, status=400)
+        
+        # Validar formato de periodos
+        _, err1 = validate_period(period1)
+        if err1:
+            return err1
+        _, err2 = validate_period(period2)
+        if err2:
+            return err2
         
         if not tenant:
-            return JsonResponse({"error": "Tenant no encontrado"}, status=404)
+            return JsonResponse({"error": {"code": "not_found", "message": "Tenant no encontrado"}}, status=404)
         
         from datetime import datetime
         
@@ -559,9 +564,9 @@ class CompareAPIView(View):
         metrics2 = get_metrics_for_period(period2)
         
         if not metrics1:
-            return JsonResponse({"error": f"No hay datos para {period1}"}, status=404)
+            return JsonResponse({"error": {"code": "not_found", "message": f"No hay datos para {period1}"}}, status=404)
         if not metrics2:
-            return JsonResponse({"error": f"No hay datos para {period2}"}, status=404)
+            return JsonResponse({"error": {"code": "not_found", "message": f"No hay datos para {period2}"}}, status=404)
         
         def calc_delta(m1, m2, key):
             v1 = m1.get(key, 0) or 0
@@ -583,21 +588,32 @@ class CompareAPIView(View):
         })
 
 
-@method_decorator(csrf_exempt, name="dispatch")
-class DetailsAPIView(View):
+class DetailsAPIView(LoginRequiredJSONMixin, View):
     """API para obtener detalles del análisis (tabla paginada)."""
     
     def get(self, request):
         tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")
-        page = int(request.GET.get("page", 1))
-        per_page = int(request.GET.get("per_page", 25))
+        
+        # Validar paginación
+        page, per_page, err = validate_pagination(request)
+        if err:
+            return err
+        
+        # Validar periodo
+        period_date, err = validate_period(period)
+        if err:
+            return err
+        
         search = request.GET.get("search", "")
         sort_by = request.GET.get("sort_by", "Personal_Real")
         sort_order = request.GET.get("sort_order", "desc")
+        sort_by, sort_order, _ = validate_sort(sort_by, sort_order)
+        if not sort_by:
+            sort_by = "Personal_Real"
         
         if not tenant:
-            return JsonResponse({"error": "Tenant no encontrado"}, status=404)
+            return JsonResponse({"error": {"code": "not_found", "message": "Tenant no encontrado"}}, status=404)
         
         filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
         if period:
@@ -621,7 +637,7 @@ class DetailsAPIView(View):
         
         artifact = job.artifacts.filter(kind=ArtifactKind.PARQUET).first()
         if not artifact:
-            return JsonResponse({"error": "No hay datos de análisis"}, status=404)
+            return JsonResponse({"error": {"code": "not_found", "message": "No hay datos de análisis"}}, status=404)
         
         try:
             # Leer desde buffer para compatibilidad con S3
@@ -674,7 +690,8 @@ class DetailsAPIView(View):
             })
             
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            logger.error(f"Error en DetailsAPIView: {e}", exc_info=True)
+            return JsonResponse({"error": {"code": "server_error", "message": "Error al procesar los datos"}}, status=500)
     
     def _apply_global_filters(self, df, filters):
         """Aplica filtros globales al DataFrame."""
@@ -726,23 +743,32 @@ class DetailsAPIView(View):
         return df
 
 
-@method_decorator(csrf_exempt, name="dispatch")
-class ClientsAPIView(View):
+class ClientsAPIView(LoginRequiredJSONMixin, View):
     """API para obtener datos de clientes con paginación."""
     
     def get(self, request):
-        tenant_slug = request.GET.get("tenant", "default")
+        tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")
-        page = int(request.GET.get("page", 1))
-        per_page = int(request.GET.get("per_page", 25))
+        
+        # Validar paginación
+        page, per_page, err = validate_pagination(request)
+        if err:
+            return err
+        
+        # Validar periodo
+        period_date, err = validate_period(period)
+        if err:
+            return err
+        
         search = request.GET.get("search", "")
         sort_by = request.GET.get("sort_by", "pa")
         sort_order = request.GET.get("sort_order", "desc")
+        sort_by, sort_order, _ = validate_sort(sort_by, sort_order)
+        if not sort_by:
+            sort_by = "pa"
         
-        try:
-            tenant = Tenant.objects.get(slug=tenant_slug)
-        except Tenant.DoesNotExist:
-            return JsonResponse({"error": "Tenant no encontrado"}, status=404)
+        if not tenant:
+            return JsonResponse({"error": {"code": "not_found", "message": "Tenant no encontrado"}}, status=404)
         
         filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
         if period:
@@ -766,7 +792,7 @@ class ClientsAPIView(View):
         
         artifact = job.artifacts.filter(kind=ArtifactKind.PARQUET).first()
         if not artifact:
-            return JsonResponse({"error": "No hay datos de análisis"}, status=404)
+            return JsonResponse({"error": {"code": "not_found", "message": "No hay datos de análisis"}}, status=404)
         
         try:
             # Leer desde buffer para compatibilidad con S3
@@ -840,7 +866,8 @@ class ClientsAPIView(View):
             })
             
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            logger.error(f"Error en ClientsAPIView: {e}", exc_info=True)
+            return JsonResponse({"error": {"code": "server_error", "message": "Error al procesar los datos"}}, status=500)
     
     def _apply_global_filters(self, df, filters):
         """Aplica filtros globales al DataFrame."""
@@ -892,23 +919,32 @@ class ClientsAPIView(View):
         return df
 
 
-@method_decorator(csrf_exempt, name="dispatch")
-class UnitsAPIView(View):
+class UnitsAPIView(LoginRequiredJSONMixin, View):
     """API para obtener datos de unidades con paginación."""
     
     def get(self, request):
-        tenant_slug = request.GET.get("tenant", "default")
+        tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")
-        page = int(request.GET.get("page", 1))
-        per_page = int(request.GET.get("per_page", 25))
+        
+        # Validar paginación
+        page, per_page, err = validate_pagination(request)
+        if err:
+            return err
+        
+        # Validar periodo
+        period_date, err = validate_period(period)
+        if err:
+            return err
+        
         search = request.GET.get("search", "")
         sort_by = request.GET.get("sort_by", "pa")
         sort_order = request.GET.get("sort_order", "desc")
+        sort_by, sort_order, _ = validate_sort(sort_by, sort_order)
+        if not sort_by:
+            sort_by = "pa"
         
-        try:
-            tenant = Tenant.objects.get(slug=tenant_slug)
-        except Tenant.DoesNotExist:
-            return JsonResponse({"error": "Tenant no encontrado"}, status=404)
+        if not tenant:
+            return JsonResponse({"error": {"code": "not_found", "message": "Tenant no encontrado"}}, status=404)
         
         filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
         if period:
@@ -932,7 +968,7 @@ class UnitsAPIView(View):
         
         artifact = job.artifacts.filter(kind=ArtifactKind.PARQUET).first()
         if not artifact:
-            return JsonResponse({"error": "No hay datos de análisis"}, status=404)
+            return JsonResponse({"error": {"code": "not_found", "message": "No hay datos de análisis"}}, status=404)
         
         try:
             # Leer desde buffer para compatibilidad con S3
@@ -1006,7 +1042,8 @@ class UnitsAPIView(View):
             })
             
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            logger.error(f"Error en UnitsAPIView: {e}", exc_info=True)
+            return JsonResponse({"error": {"code": "server_error", "message": "Error al procesar los datos"}}, status=500)
     
     def _apply_global_filters(self, df, filters):
         """Aplica filtros globales al DataFrame."""
@@ -1014,7 +1051,6 @@ class UnitsAPIView(View):
         
         if filters.get("macrozona"):
             df = df.filter(pl.col("Macrozona_SV") == filters["macrozona"])
-        
         if filters.get("zona"):
             zona_filter = pl.lit(False)
             if "Zona_SV" in df.columns:
@@ -1022,7 +1058,6 @@ class UnitsAPIView(View):
             if "Zona_PA" in df.columns:
                 zona_filter = zona_filter | (pl.col("Zona_PA") == filters["zona"])
             df = df.filter(zona_filter)
-        
         if filters.get("compania"):
             compania_filter = pl.lit(False)
             if "Compañía_SV" in df.columns:
@@ -1030,7 +1065,6 @@ class UnitsAPIView(View):
             if "Compañía_PA" in df.columns:
                 compania_filter = compania_filter | (pl.col("Compañía_PA") == filters["compania"])
             df = df.filter(compania_filter)
-        
         if filters.get("grupo"):
             grupo_filter = pl.lit(False)
             if "Nombre_Grupo_SV" in df.columns:
@@ -1038,7 +1072,6 @@ class UnitsAPIView(View):
             if "Nombre_Grupo_PA" in df.columns:
                 grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_PA") == filters["grupo"])
             df = df.filter(grupo_filter)
-        
         if filters.get("sector"):
             sector_filter = pl.lit(False)
             if "Sector_SV" in df.columns:
@@ -1046,7 +1079,6 @@ class UnitsAPIView(View):
             if "Sector_PA" in df.columns:
                 sector_filter = sector_filter | (pl.col("Sector_PA") == filters["sector"])
             df = df.filter(sector_filter)
-        
         if filters.get("gerente"):
             gerente_filter = pl.lit(False)
             if "Gerencia_SV" in df.columns:
@@ -1054,27 +1086,35 @@ class UnitsAPIView(View):
             if "Gerencia_PA" in df.columns:
                 gerente_filter = gerente_filter | (pl.col("Gerencia_PA") == filters["gerente"])
             df = df.filter(gerente_filter)
-        
         return df
 
 
-@method_decorator(csrf_exempt, name="dispatch")
-class ServicesAPIView(View):
+class ServicesAPIView(LoginRequiredJSONMixin, View):
     """API para obtener datos de servicios con paginación."""
     
     def get(self, request):
-        tenant_slug = request.GET.get("tenant", "default")
+        tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")
-        page = int(request.GET.get("page", 1))
-        per_page = int(request.GET.get("per_page", 25))
+        
+        # Validar paginación
+        page, per_page, err = validate_pagination(request)
+        if err:
+            return err
+        
+        # Validar periodo
+        period_date, err = validate_period(period)
+        if err:
+            return err
+        
         search = request.GET.get("search", "")
         sort_by = request.GET.get("sort_by", "pa")
         sort_order = request.GET.get("sort_order", "desc")
+        sort_by, sort_order, _ = validate_sort(sort_by, sort_order)
+        if not sort_by:
+            sort_by = "pa"
         
-        try:
-            tenant = Tenant.objects.get(slug=tenant_slug)
-        except Tenant.DoesNotExist:
-            return JsonResponse({"error": "Tenant no encontrado"}, status=404)
+        if not tenant:
+            return JsonResponse({"error": {"code": "not_found", "message": "Tenant no encontrado"}}, status=404)
         
         filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
         if period:
@@ -1098,7 +1138,7 @@ class ServicesAPIView(View):
         
         artifact = job.artifacts.filter(kind=ArtifactKind.PARQUET).first()
         if not artifact:
-            return JsonResponse({"error": "No hay datos de análisis"}, status=404)
+            return JsonResponse({"error": {"code": "not_found", "message": "No hay datos de análisis"}}, status=404)
         
         try:
             # Leer desde buffer para compatibilidad con S3
@@ -1172,7 +1212,8 @@ class ServicesAPIView(View):
             })
             
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            logger.error(f"Error en ServicesAPIView: {e}", exc_info=True)
+            return JsonResponse({"error": {"code": "server_error", "message": "Error al procesar los datos"}}, status=500)
     
     def _apply_global_filters(self, df, filters):
         """Aplica filtros globales al DataFrame."""
@@ -1248,13 +1289,14 @@ class CustomLoginView(View):
             })
 
 
-class CustomLogoutView(View):
-    """Vista de logout personalizada."""
+class CustomLogoutView(LoginRequiredMixin, View):
+    """Vista de logout personalizada - solo POST."""
+    login_url = "/dashboard/login/"
     
     def post(self, request):
         logout(request)
         return redirect('dashboard:login')
     
     def get(self, request):
-        logout(request)
-        return redirect('dashboard:login')
+        """GET no permitido para logout - redirigir al dashboard."""
+        return redirect('dashboard:main')

@@ -205,13 +205,15 @@ class IPRateLimitMiddleware(MiddlewareMixin):
     
     def _get_client_ip(self, request: HttpRequest) -> str:
         """Obtiene la IP real del cliente, considerando proxies."""
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if x_forwarded_for:
-            # Tomar la primera IP (la del cliente original)
-            ip = x_forwarded_for.split(",")[0].strip()
-        else:
-            ip = request.META.get("REMOTE_ADDR", "unknown")
-        return ip
+        # Cloudflare inyecta la IP real del cliente en este header
+        cf_ip = request.META.get("HTTP_CF_CONNECTING_IP")
+        if cf_ip:
+            return cf_ip.strip()
+        # Fallback para proxies confiables (Nginx Proxy Manager)
+        x_real_ip = request.META.get("HTTP_X_REAL_IP")
+        if x_real_ip:
+            return x_real_ip.strip()
+        return request.META.get("REMOTE_ADDR", "unknown")
     
     def _get_endpoint_type(self, path: str) -> str:
         """Determina el tipo de endpoint para aplicar límites apropiados."""
@@ -314,9 +316,12 @@ class AuditLoggingMiddleware(MiddlewareMixin):
     
     def _get_client_ip(self, request: HttpRequest) -> str:
         """Obtiene la IP real del cliente."""
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if x_forwarded_for:
-            return x_forwarded_for.split(",")[0].strip()
+        cf_ip = request.META.get("HTTP_CF_CONNECTING_IP")
+        if cf_ip:
+            return cf_ip.strip()
+        x_real_ip = request.META.get("HTTP_X_REAL_IP")
+        if x_real_ip:
+            return x_real_ip.strip()
         return request.META.get("REMOTE_ADDR", "unknown")
 
 

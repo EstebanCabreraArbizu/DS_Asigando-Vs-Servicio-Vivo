@@ -92,7 +92,7 @@ services:
       AWS_S3_FILE_OVERWRITE: ${AWS_S3_FILE_OVERWRITE:-false}
       AWS_DEFAULT_ACL: ${AWS_DEFAULT_ACL:-private}
       # Database
-      POSTGRES_HOST: db
+      POSTGRES_HOST: ${POSTGRES_HOST:-db}
       USE_SQLITE: "0"
     volumes:
       - ..:/app
@@ -133,7 +133,7 @@ services:
       AWS_S3_FILE_OVERWRITE: ${AWS_S3_FILE_OVERWRITE:-false}
       AWS_DEFAULT_ACL: ${AWS_DEFAULT_ACL:-private}
       # Database
-      POSTGRES_HOST: db
+      POSTGRES_HOST: ${POSTGRES_HOST:-db}
       USE_SQLITE: "0"
     volumes:
       - ..:/app

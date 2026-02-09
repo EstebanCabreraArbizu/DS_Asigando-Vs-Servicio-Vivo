@@ -17,7 +17,12 @@ load_dotenv(BASE_DIR / ".env", override=False)
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "change-me")
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError(
+        "DJANGO_SECRET_KEY no está configurada. "
+        "Genera una con: python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'"
+    )
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h.strip()]
@@ -236,9 +241,9 @@ REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = os.getenv("REDIS_PORT", "6379")
 REDIS_DB = os.getenv("REDIS_DB", "0")
 
-# Construir URL con o sin autenticación
+# Construir URL con o sin autenticación (formato Redis 6+ ACL con username 'default')
 if REDIS_PASSWORD:
-    REDIS_URL = os.getenv("REDIS_URL", f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
+    REDIS_URL = os.getenv("REDIS_URL", f"redis://default:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
 else:
     REDIS_URL = os.getenv("REDIS_URL", f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
 
@@ -351,16 +356,24 @@ if DEBUG:
 # =============================================================================
 # SECURITY SETTINGS
 # =============================================================================
-# Expiración de sesiones y CSRF (1 día) siempre activos
+# Expiración de sesiones y CSRF
 SESSION_COOKIE_AGE = 900  # 15 minutos en segundos
 CSRF_COOKIE_AGE = 900     # 15 minutos en segundos
+
+# Cookies seguras (siempre activas, independiente de DEBUG)
+SESSION_COOKIE_HTTPONLY = True       # Impide acceso a la cookie de sesión desde JS
+CSRF_COOKIE_HTTPONLY = True          # Impide acceso a la cookie CSRF desde JS
+SESSION_COOKIE_SAMESITE = "Lax"      # Previene envío cross-site
+CSRF_COOKIE_SAMESITE = "Lax"         # Previene envío cross-site
+SESSION_COOKIE_NAME = "__Host-sessionid"  # Prefijo __Host requiere Secure + path=/
+CSRF_COOKIE_NAME = "__Host-csrftoken"     # Prefijo __Host requiere Secure + path=/
 
 if not DEBUG:
     # HTTPS/SSL
     SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "true").lower() == "true"
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     
-    # Cookies seguras
+    # Cookies seguras solo transmitidas por HTTPS
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     
@@ -373,6 +386,10 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_BROWSER_XSS_FILTER = True
     X_FRAME_OPTIONS = "DENY"
+else:
+    # En desarrollo sin HTTPS, no usar prefijo __Host ni Secure
+    SESSION_COOKIE_NAME = "sessionid"
+    CSRF_COOKIE_NAME = "csrftoken"
 
 # CSP (Content Security Policy) - Configurar según necesidades del frontend
 CSRF_TRUSTED_ORIGINS = [
@@ -385,28 +402,20 @@ CSRF_TRUSTED_ORIGINS = [
 # CONTENT SECURITY POLICY (CSP)
 # =============================================================================
 # Configuración de CSP para prevenir XSS, clickjacking y otros ataques
-# NOTA: El dashboard usa Tailwind CSS y ECharts desde CDN, se deben permitir
+# Todas las librerías (Bootstrap, ECharts) se sirven localmente via WhiteNoise
 CSP_DEFAULT_SRC = ("'self'",)
 CSP_SCRIPT_SRC = (
     "'self'",
-    "https://cdn.tailwindcss.com",  # Tailwind CSS
-    "https://cdn.jsdelivr.net",  # ECharts y otras librerías
-    "'unsafe-inline'",  # Necesario para scripts inline del dashboard
-    "'unsafe-eval'",  # Necesario para Tailwind JIT
+    "'unsafe-inline'",  # Necesario para <script> inline del dashboard config
 )
 CSP_STYLE_SRC = (
     "'self'",
     "'unsafe-inline'",  # Necesario para estilos inline del dashboard
-    "https://cdn.tailwindcss.com",  # Tailwind CSS
     "https://fonts.googleapis.com",  # Google Fonts
 )
 CSP_IMG_SRC = ("'self'", "data:", "https:")
 CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com")
-CSP_CONNECT_SRC = (
-    "'self'",
-    "https://cdn.tailwindcss.com",  # Para cargar Tailwind
-    "https://cdn.jsdelivr.net",  # Para cargar ECharts
-)
+CSP_CONNECT_SRC = ("'self'",)
 CSP_FRAME_ANCESTORS = ("'none'",)
 CSP_FORM_ACTION = ("'self'",)
 CSP_BASE_URI = ("'self'",)
