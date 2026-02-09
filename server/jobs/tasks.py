@@ -9,7 +9,8 @@ import polars as pl
 from celery import shared_task
 from django.core.files.base import ContentFile
 
-from jobs.models import AnalysisJob, JobStatus, Artifact, ArtifactKind
+from jobs.models import AnalysisJob, JobStatus, Artifact, ArtifactKind, AnalysisSnapshot
+from jobs.utils import generate_analysis_metrics
 
 # Pipeline (root del repo) — se habilita por sys.path en settings/manage.py
 from core.data_processor import DataProcessor
@@ -189,6 +190,17 @@ def run_analysis_job(self, job_id: str) -> None:
             job=job,
             kind=ArtifactKind.EXCEL,
             file=ContentFile(excel_bytes, name="mezclado_pa_vs_sv.xlsx"),
+        )
+
+        # Snapshot (Métricas para Dashboard)
+        metrics = generate_analysis_metrics(final_df)
+        AnalysisSnapshot.objects.update_or_create(
+            tenant=job.tenant,
+            period_month=job.period_month or job.created_at.date().replace(day=1),
+            defaults={
+                "job": job,
+                "metrics": metrics
+            }
         )
 
         job.status = JobStatus.SUCCEEDED

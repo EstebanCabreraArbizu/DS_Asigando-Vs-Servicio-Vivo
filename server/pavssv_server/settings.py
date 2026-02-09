@@ -352,8 +352,8 @@ if DEBUG:
 # SECURITY SETTINGS
 # =============================================================================
 # Expiración de sesiones y CSRF (1 día) siempre activos
-SESSION_COOKIE_AGE = 86400  # 1 día en segundos
-CSRF_COOKIE_AGE = 86400     # 1 día en segundos
+SESSION_COOKIE_AGE = 900  # 15 minutos en segundos
+CSRF_COOKIE_AGE = 900     # 15 minutos en segundos
 
 if not DEBUG:
     # HTTPS/SSL

@@ -15,6 +15,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.shortcuts import redirect, render
 
 from jobs.models import AnalysisJob, AnalysisSnapshot, JobStatus, Artifact, ArtifactKind
+from jobs.utils import generate_analysis_metrics
 from tenants.models import Tenant, Membership, MembershipRole
 
 
@@ -155,6 +156,51 @@ def get_user_permissions(user):
     return permissions.get(role, permissions[MembershipRole.VIEWER])
 
 
+def get_tenant_for_user(user, request=None):
+    """
+    Obtiene el tenant activo del usuario para el dashboard.
+    
+    Prioridad:
+    1. Query param ?tenant=<slug>
+    2. Header X-Tenant-ID
+    3. Tenant por defecto del usuario
+    4. Primer tenant del usuario
+    5. Fallback: tenant "default"
+    """
+    if not user or not user.is_authenticated:
+        return Tenant.objects.filter(slug="default").first()
+    
+    if request:
+        # 1. Query param (usado en links del dashboard)
+        tenant_slug = request.GET.get("tenant")
+        if tenant_slug:
+            tenant = Tenant.objects.filter(slug=tenant_slug).first()
+            if tenant:
+                return tenant
+        
+        # 2. Header (usado en llamadas API/AJAX)
+        tenant_id = request.META.get("HTTP_X_TENANT_ID")
+        if tenant_id:
+            try:
+                tenant = Tenant.objects.filter(id=tenant_id).first()
+                if tenant:
+                    return tenant
+            except:
+                pass
+    
+    # 3. Default membership
+    membership = Membership.objects.filter(user=user, is_default=True).first()
+    if not membership:
+        # 4. First membership
+        membership = Membership.objects.filter(user=user).first()
+    
+    if membership:
+        return membership.tenant
+    
+    # 5. Fallback a default
+    return Tenant.objects.filter(slug="default").first()
+
+
 class UploadView(LoginRequiredMixin, TemplateView):
     """Vista para subir archivos Excel con drag & drop."""
     template_name = "dashboard/upload.html"
@@ -162,7 +208,7 @@ class UploadView(LoginRequiredMixin, TemplateView):
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        tenant = Tenant.objects.filter(slug="default").first()
+        tenant = get_tenant_for_user(self.request.user, self.request)
         
         # Permisos del usuario
         permissions = get_user_permissions(self.request.user)
@@ -187,8 +233,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         
-        # Obtener tenant (por ahora usa default)
-        tenant = Tenant.objects.filter(slug="default").first()
+        # Obtener tenant dinámicamente
+        tenant = get_tenant_for_user(self.request.user, self.request)
         
         # Permisos del usuario
         permissions = get_user_permissions(self.request.user)
@@ -238,7 +284,7 @@ class MetricsAPIView(View):
     """API para obtener métricas del dashboard."""
     
     def get(self, request):
-        tenant_slug = request.GET.get("tenant", "default")
+        tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")  # Formato: YYYY-MM
         
         # Filtros opcionales recibidos desde frontend
@@ -251,9 +297,7 @@ class MetricsAPIView(View):
             "gerente": request.GET.get("gerente", ""),
         }
         
-        try:
-            tenant = Tenant.objects.get(slug=tenant_slug)
-        except Tenant.DoesNotExist:
+        if not tenant:
             return JsonResponse({"error": "Tenant no encontrado"}, status=404)
         
         # Buscar snapshot del periodo (consulta de snapshots/jobs no incluye filtros de UI)
@@ -408,153 +452,8 @@ class MetricsAPIView(View):
                     "filtros_disponibles": {},
                 }
             
-            # KPIs básicos
-            total_pa = int(df["Personal_Real"].sum() or 0)
-            total_sv = float(df["Personal_Estimado"].sum() or 0)
-            coincidencias = len(df.filter(
-                (pl.col("Personal_Real") > 0) & (pl.col("Personal_Estimado") > 0)
-            ))
-            diferencia = total_pa - total_sv
-            # Cobertura = PA/SV × 100 (qué tanto del SV está cubierto por PA)
-            cobertura = round((total_pa / total_sv * 100) if total_sv > 0 else 0, 2)
-            
-            # Por estado
-            by_estado = df.group_by("Estado").agg([
-                pl.col("Personal_Real").sum().alias("pa"),
-                pl.col("Personal_Estimado").sum().alias("sv"),
-                pl.len().alias("count")
-            ]).sort("count", descending=True).to_dicts()
-            
-            # Por zona - PREFERIR SV, SI NO HAY USAR PA
-            by_zona = []
-            zona_col = None
-            if "Zona_SV" in df.columns:
-                zona_col = "Zona_SV"
-            elif "Zona_PA" in df.columns:
-                zona_col = "Zona_PA"
-            
-            if zona_col:
-                # Crear columna de zona combinada (preferir SV)
-                df_zona = df.with_columns(
-                    pl.coalesce([
-                        pl.when(pl.col("Zona_SV").is_not_null() & (pl.col("Zona_SV") != ""))
-                        .then(pl.col("Zona_SV"))
-                        .otherwise(None) if "Zona_SV" in df.columns else pl.lit(None),
-                        pl.when(pl.col("Zona_PA").is_not_null() & (pl.col("Zona_PA") != ""))
-                        .then(pl.col("Zona_PA"))
-                        .otherwise(None) if "Zona_PA" in df.columns else pl.lit(None),
-                        pl.lit("Sin Zona")
-                    ]).alias("Zona_Display")
-                )
-                by_zona = df_zona.group_by("Zona_Display").agg([
-                    pl.col("Personal_Real").sum().alias("pa"),
-                    pl.col("Personal_Estimado").sum().alias("sv"),
-                    pl.len().alias("count")
-                ]).filter(
-                    pl.col("Zona_Display").is_not_null() & (pl.col("Zona_Display") != "")
-                ).sort("pa", descending=True).head(10).to_dicts()
-            
-            # Por MacroZona
-            by_macrozona = []
-            if "Macrozona_SV" in df.columns:
-                by_macrozona = df.group_by("Macrozona_SV").agg([
-                    pl.col("Personal_Real").sum().alias("pa"),
-                    pl.col("Personal_Estimado").sum().alias("sv"),
-                    pl.len().alias("count")
-                ]).filter(
-                    pl.col("Macrozona_SV").is_not_null() & (pl.col("Macrozona_SV") != "")
-                ).sort("pa", descending=True).to_dicts()
-            
-            # Top 10 clientes con nombre combinado (preferir SV > PA)
-            df_cliente = df.with_columns(
-                pl.coalesce([
-                    pl.col("Nombre_Cliente_SV") if "Nombre_Cliente_SV" in df.columns else pl.lit(None),
-                    pl.col("Nombre_Cliente_PA") if "Nombre_Cliente_PA" in df.columns else pl.lit(None),
-                    pl.col("Cliente_Final")
-                ]).alias("Nombre_Cliente_Display")
-            )
-            by_cliente = df_cliente.group_by("Cliente_Final").agg([
-                pl.col("Personal_Real").sum().alias("pa"),
-                pl.col("Personal_Estimado").sum().alias("sv"),
-                (pl.col("Personal_Real").sum() - pl.col("Personal_Estimado").sum()).alias("diferencia"),
-                pl.col("Nombre_Cliente_Display").first().alias("nombre"),
-                pl.len().alias("servicios")
-            ]).sort("pa", descending=True).head(10).to_dicts()
-            
-            # Por Unidad - Top 10
-            df_unidad = df.with_columns(
-                pl.coalesce([
-                    pl.col("Nombre_Unidad_SV") if "Nombre_Unidad_SV" in df.columns else pl.lit(None),
-                    pl.col("Nombre_Unidad_PA") if "Nombre_Unidad_PA" in df.columns else pl.lit(None),
-                    pl.col("Unidad_Str")
-                ]).alias("Nombre_Unidad_Display")
-            )
-            by_unidad = df_unidad.group_by("Unidad_Str").agg([
-                pl.col("Personal_Real").sum().alias("pa"),
-                pl.col("Personal_Estimado").sum().alias("sv"),
-                (pl.col("Personal_Real").sum() - pl.col("Personal_Estimado").sum()).alias("diferencia"),
-                pl.col("Nombre_Unidad_Display").first().alias("nombre"),
-                pl.len().alias("servicios")
-            ]).sort("pa", descending=True).head(10).to_dicts()
-            
-            # Por Servicio - Top 10
-            df_servicio = df.with_columns(
-                pl.coalesce([
-                    pl.col("Nombre_Servicio_SV") if "Nombre_Servicio_SV" in df.columns else pl.lit(None),
-                    pl.col("Nombre_Servicio_PA") if "Nombre_Servicio_PA" in df.columns else pl.lit(None),
-                    pl.col("Servicio_Limpio")
-                ]).alias("Nombre_Servicio_Display")
-            )
-            by_servicio = df_servicio.group_by("Servicio_Limpio").agg([
-                pl.col("Personal_Real").sum().alias("pa"),
-                pl.col("Personal_Estimado").sum().alias("sv"),
-                (pl.col("Personal_Real").sum() - pl.col("Personal_Estimado").sum()).alias("diferencia"),
-                pl.col("Nombre_Servicio_Display").first().alias("nombre"),
-                pl.len().alias("registros")
-            ]).sort("pa", descending=True).head(10).to_dicts()
-            
-            # Por Grupo
-            by_grupo = []
-            grupo_col = "Nombre_Grupo_SV" if "Nombre_Grupo_SV" in df.columns else ("Nombre_Grupo_PA" if "Nombre_Grupo_PA" in df.columns else None)
-            if grupo_col:
-                by_grupo = df.group_by(grupo_col).agg([
-                    pl.col("Personal_Real").sum().alias("pa"),
-                    pl.col("Personal_Estimado").sum().alias("sv"),
-                    pl.len().alias("count")
-                ]).filter(
-                    pl.col(grupo_col).is_not_null() & (pl.col(grupo_col) != "")
-                ).sort("pa", descending=True).head(10).to_dicts()
-            
-            # Calcular cobertura diferencial
-            cobertura_diff = round((diferencia / total_sv * 100) if total_sv > 0 else 0, 2)
-            
-            # Obtener lista de filtros disponibles
-            filtros_disponibles = {
-                "macrozona": self._get_unique_values(df, "Macrozona_SV"),
-                "zona": self._get_unique_values(df, "Zona_SV", "Zona_PA"),
-                "compania": self._get_unique_values(df, "Compañía_SV", "Compañía_PA"),
-                "grupo": self._get_unique_values(df, "Nombre_Grupo_SV", "Nombre_Grupo_PA"),
-                "sector": self._get_unique_values(df, "Sector_SV", "Sector_PA"),
-                "gerente": self._get_unique_values(df, "Gerencia_SV", "Gerencia_PA"),
-            }
-            
-            return {
-                "total_personal_asignado": total_pa,
-                "total_servicio_vivo": round(total_sv, 2),
-                "coincidencias": coincidencias,
-                "diferencia_total": round(diferencia, 2),
-                "cobertura_porcentaje": cobertura,
-                "cobertura_diferencial": cobertura_diff,
-                "total_servicios": len(df),
-                "by_estado": by_estado,
-                "by_zona": by_zona,
-                "by_macrozona": by_macrozona,
-                "by_cliente_top10": by_cliente,
-                "by_unidad_top10": by_unidad,
-                "by_servicio_top10": by_servicio,
-                "by_grupo": by_grupo,
-                "filtros_disponibles": filtros_disponibles,
-            }
+            # Usar utilidad compartida para generar métricas
+            return generate_analysis_metrics(df)
         except Exception as e:
             print(f"Error generando métricas: {e}")
             import traceback
@@ -579,11 +478,9 @@ class PeriodsAPIView(View):
     """API para obtener periodos disponibles."""
     
     def get(self, request):
-        tenant_slug = request.GET.get("tenant", "default")
+        tenant = get_tenant_for_user(request.user, request)
         
-        try:
-            tenant = Tenant.objects.get(slug=tenant_slug)
-        except Tenant.DoesNotExist:
+        if not tenant:
             return JsonResponse({"error": "Tenant no encontrado"}, status=404)
         
         # Obtener periodos de snapshots
@@ -625,16 +522,14 @@ class CompareAPIView(View):
     """API para comparar dos periodos."""
     
     def get(self, request):
-        tenant_slug = request.GET.get("tenant", "default")
+        tenant = get_tenant_for_user(request.user, request)
         period1 = request.GET.get("period1")
         period2 = request.GET.get("period2")
         
         if not period1 or not period2:
             return JsonResponse({"error": "Se requieren period1 y period2"}, status=400)
         
-        try:
-            tenant = Tenant.objects.get(slug=tenant_slug)
-        except Tenant.DoesNotExist:
+        if not tenant:
             return JsonResponse({"error": "Tenant no encontrado"}, status=404)
         
         from datetime import datetime
@@ -693,7 +588,7 @@ class DetailsAPIView(View):
     """API para obtener detalles del análisis (tabla paginada)."""
     
     def get(self, request):
-        tenant_slug = request.GET.get("tenant", "default")
+        tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")
         page = int(request.GET.get("page", 1))
         per_page = int(request.GET.get("per_page", 25))
@@ -701,9 +596,7 @@ class DetailsAPIView(View):
         sort_by = request.GET.get("sort_by", "Personal_Real")
         sort_order = request.GET.get("sort_order", "desc")
         
-        try:
-            tenant = Tenant.objects.get(slug=tenant_slug)
-        except Tenant.DoesNotExist:
+        if not tenant:
             return JsonResponse({"error": "Tenant no encontrado"}, status=404)
         
         filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}

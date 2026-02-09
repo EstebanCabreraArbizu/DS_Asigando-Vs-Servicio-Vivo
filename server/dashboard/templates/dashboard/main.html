@@ -12,16 +12,12 @@
             theme: {
                 extend: {
                     colors: {
-                        'neon-red': '#ff133f',
-                        'neon-red-strong': '#ff2a57',
-                        'neon-cyan': '#00cfdc',
-                        'neon-cyan-soft': 'rgba(0, 207, 220, 0.34)',
-                        'neon-amber': '#f8d57c',
+                        'liderman-red': '#D31332',
+                        'liderman-blue': '#00AEEF',
+                        'liderman-gray': '#333333',
                     },
                     fontFamily: {
-                        display: ['Orbitron', 'Tourney', 'system-ui', 'sans-serif'],
-                        body: ['Rajdhani', 'system-ui', 'sans-serif'],
-                        mono: ['Syne Mono', 'monospace'],
+                        sans: ['Roboto', 'system-ui', 'sans-serif'],
                     },
                 },
             },
@@ -29,31 +25,9 @@
     </script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
     <style>
-        .kpi-card {
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .kpi-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-        }
-
-        .chart-container {
-            min-height: 300px;
-        }
-
+        /* Base optimizations */
         .loading-overlay {
-            background: rgba(255, 255, 255, 0.8);
-        }
-
-        .tab-active {
-            border-bottom: 3px solid #3B82F6;
-            color: #3B82F6;
-            font-weight: 600;
-        }
-
-        .filter-select {
-            min-width: 150px;
+            background: rgba(255, 255, 255, 0.9);
         }
 
         .table-fixed-header thead {
@@ -61,103 +35,8 @@
             top: 0;
             z-index: 10;
         }
-
-        .status-badge {
-            font-size: 0.75rem;
-            padding: 2px 8px;
-            border-radius: 9999px;
-        }
-
-        .estado-SOBRECARGA {
-            background: #FEE2E2;
-            color: #DC2626;
-        }
-
-        .estado-FALTA {
-            background: #FEF3C7;
-            color: #D97706;
-        }
-
-        .estado-EXACTO {
-            background: #D1FAE5;
-            color: #059669;
-        }
-
-        .estado-NO_PLANIFICADO {
-            background: #E5E7EB;
-            color: #6B7280;
-        }
-
-        .estado-SIN_PERSONAL {
-            background: #DBEAFE;
-            color: #2563EB;
-        }
-
-        .estado-SIN_DATOS {
-            background: #F3F4F6;
-            color: #9CA3AF;
-        }
-
-        /* CRITICAL TABLE HEADER OVERRIDES - MAXIMUM SPECIFICITY */
-        html body table thead th,
-        html body table thead tr th,
-        html body .table-fixed-header thead th,
-        html body .table-fixed-header thead tr th,
-        html body .min-w-full thead th,
-        html body .min-w-full thead tr th {
-            color: #f3f7ff !important;
-            background-color: #0a0f1f !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
-            letter-spacing: 0.08em !important;
-            padding: 1rem 0.75rem !important;
-            font-weight: 600 !important;
-            text-transform: uppercase !important;
-            font-size: 0.85rem !important;
-        }
-
-        /* Force right and center alignment overrides */
-        html body table thead th.text-right,
-        html body table thead th.text-center {
-            text-align: right !important;
-            color: #f3f7ff !important;
-            background-color: #0a0f1f !important;
-        }
-
-        html body table thead th.text-center {
-            text-align: center !important;
-        }
-
-        /* Override ALL Tailwind table header classes */
-        html body th[class*="text-gray"],
-        html body th[class*="bg-"],
-        html body thead[class*="bg-"],
-        html body .bg-gray-50 {
-            color: #f3f7ff !important;
-            background-color: #0a0f1f !important;
-        }
-
-        /* Table header hover effects */
-        html body table thead th:hover,
-        html body .table-fixed-header thead th:hover {
-            background-color: rgba(255, 44, 85, 0.2) !important;
-            color: #f3f7ff !important;
-        }
-
-        /* Sortable headers */
-        html body table th[data-sort]:hover {
-            background-color: rgba(255, 44, 85, 0.25) !important;
-            cursor: pointer;
-        }
-
-        /* Table container styling */
-        html body .table-fixed-header thead {
-            backdrop-filter: blur(10px) !important;
-            -webkit-backdrop-filter: blur(10px) !important;
-            background: linear-gradient(120deg, rgba(255, 44, 85, 0.25), rgba(0, 247, 255, 0.12)) !important;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
-        }
     </style>
-    <link rel="stylesheet" href="{% static 'dashboard/main.css' %}?v=20241231">
+    <link rel="stylesheet" href="{% static 'dashboard/liderman_theme.css' %}?v={% now 'U' %}">
 </head>
 
 <body class="bg-gray-100 min-h-screen">

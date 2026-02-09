@@ -1,0 +1,324 @@
+/**
+ * S.E.R.I. - Dashboard PA vs SV
+ * Tema: Liderman Corporate - Clean Glassmorphism
+ * Author: Antigravity
+ */
+
+/* ============================================
+   VARIABLES
+   ============================================ */
+:root {
+    --liderman-red: #D31332;
+    --liderman-red-dark: #A60F26;
+    --liderman-gray: #333333;
+    --liderman-light-gray: #F5F7FA;
+    --liderman-blue-accent: #00AEEF;
+
+    --bg-body: #F0F2F5;
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.6);
+    --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+
+    --text-main: #2D3748;
+    --text-muted: #718096;
+
+    --font-main: 'Roboto', 'Segoe UI', sans-serif;
+}
+
+/* ============================================
+   BASE
+   ============================================ */
+body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    font-family: var(--font-main);
+    background-image:
+        radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 0) 0, transparent 50%),
+        radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 0) 0, transparent 50%),
+        radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 0) 0, transparent 50%);
+    background-attachment: fixed;
+}
+
+/* ============================================
+   GLASSMORPHISM UTILITIES
+   ============================================ */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: 12px;
+}
+
+/* ============================================
+   HEADER & NAVIGATION
+   ============================================ */
+header {
+    background: linear-gradient(90deg, #ffffff 0%, #f8f9fa 100%) !important;
+    border-bottom: 3px solid var(--liderman-red) !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1) !important;
+}
+
+header h1 {
+    color: var(--liderman-gray) !important;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+}
+
+header p {
+    color: var(--text-muted) !important;
+}
+
+/* Navigation Tabs */
+.tab-btn {
+    color: var(--text-muted);
+    font-weight: 500;
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    margin-right: 4px;
+}
+
+.tab-btn:hover {
+    color: var(--liderman-red);
+    background: rgba(211, 19, 50, 0.05);
+}
+
+.tab-active {
+    color: var(--liderman-red) !important;
+    border-bottom: 2px solid var(--liderman-red);
+    font-weight: 700;
+    background: rgba(211, 19, 50, 0.05);
+}
+
+/* ============================================
+   CARDS & KPI
+   ============================================ */
+.kpi-card {
+    background: white !important;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease;
+}
+
+.kpi-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.kpi-card p.text-gray-500 {
+    color: var(--text-muted) !important;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+}
+
+.kpi-card p[class*="text-2xl"] {
+    color: var(--liderman-gray) !important;
+}
+
+/* Specific KPI Colors overrides for values if needed, 
+   but currently keeping them dark grey for clean corporate look, 
+   or we can use the brand red for key metrics */
+#kpi-pa,
+#kpi-sv {
+    color: var(--liderman-red) !important;
+}
+
+/* ============================================
+   TABLES
+   ============================================ */
+.table-fixed-header thead th,
+table thead th {
+    background-color: var(--liderman-red) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    font-size: 0.8rem !important;
+    letter-spacing: 0.05em !important;
+    border: none !important;
+}
+
+table tbody tr {
+    background-color: white !important;
+    border-bottom: 1px solid #edf2f7 !important;
+    transition: background-color 0.2s;
+}
+
+table tbody tr:hover {
+    background-color: #f7fafc !important;
+}
+
+table td {
+    color: var(--text-main) !important;
+    padding: 1rem !important;
+}
+
+/* Status Badges */
+.status-badge {
+    border-radius: 4px;
+    font-weight: 600;
+    box-shadow: none !important;
+}
+
+.estado-SOBRECARGA {
+    background-color: #FED7D7;
+    color: #C53030;
+    border: 1px solid #FEB2B2;
+}
+
+.estado-FALTA {
+    background-color: #FEEBC8;
+    color: #C05621;
+    border: 1px solid #FBD38D;
+}
+
+.estado-EXACTO {
+    background-color: #C6F6D5;
+    color: #2F855A;
+    border: 1px solid #9AE6B4;
+}
+
+.estado-SIN_PERSONAL {
+    background-color: #EBF8FF;
+    color: #2B6CB0;
+    border: 1px solid #BEE3F8;
+}
+
+.estado-NO_PLANIFICADO {
+    background-color: #EDF2F7;
+    color: #4A5568;
+    border: 1px solid #CBD5E0;
+}
+
+/* Filter Selects */
+select,
+.filter-select {
+    background-color: white !important;
+    border: 1px solid #e2e8f0 !important;
+    color: var(--text-main) !important;
+    border-radius: 6px !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+select:focus,
+.filter-select:focus {
+    border-color: var(--liderman-red) !important;
+    box-shadow: 0 0 0 2px rgba(211, 19, 50, 0.2) !important;
+}
+
+/* Buttons */
+button {
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+}
+
+header button,
+header a.bg-green-500,
+header a.bg-orange-500 {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Glass Container for Charts */
+.chart-container,
+.bg-white.rounded-lg {
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(10px) !important;
+    border: 1px solid rgba(255, 255, 255, 1) !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+}
+
+.chart-container {
+    width: 100%;
+    min-height: 350px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* ============================================
+   LOGIN & UPLOAD - CLEAN CORPORATE STYLES
+   ============================================ */
+
+/* HUD Title - Clean Corporate Version */
+.hud-title {
+    font-family: 'Roboto', system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 1.75rem;
+    color: var(--liderman-red);
+    letter-spacing: -0.01em;
+}
+
+.hud-title.text-xl {
+    font-size: 1.25rem;
+}
+
+.hud-subtitle {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 400;
+}
+
+/* Dropzone - Clean Style */
+.dropzone {
+    border: 2px dashed #CBD5E0;
+    background: rgba(247, 250, 252, 0.8);
+    color: var(--text-main);
+    transition: all 200ms ease;
+    border-radius: 12px;
+}
+
+.dropzone:hover {
+    border-color: var(--liderman-blue-accent);
+    background: rgba(0, 174, 239, 0.05);
+}
+
+.dropzone.dragover {
+    border-color: var(--liderman-red);
+    background: rgba(211, 19, 50, 0.05);
+    transform: scale(1.01);
+}
+
+.dropzone.has-file {
+    border-color: #48BB78;
+    background: rgba(72, 187, 120, 0.05);
+}
+
+.dropzone.error {
+    border-color: var(--liderman-red);
+    background: rgba(211, 19, 50, 0.08);
+}
+
+/* Glass Panel - For Login/Upload */
+.glass-panel,
+.hud-panel {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(178, 156, 156, 0.08);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+}
+
+/* Glow Text - Subtle version for corporate */
+.glow-text {
+    color: var(--liderman-gray);
+    text-shadow: none;
+}

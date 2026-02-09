@@ -27,8 +27,10 @@ server/staticfiles/
 .env
 *migrations/
 *.json
+*.env
 tests/test_determinism_result.txt
 *.playwright-mcp/
 *.testsprite_tests/
 server/testsprite_tests/
 node_modules/
+server/logs/*
