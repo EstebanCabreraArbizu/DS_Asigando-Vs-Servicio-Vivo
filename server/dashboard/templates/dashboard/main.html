@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard PA vs SV - {{ tenant.name|default:"Sistema" }}</title>
     <link rel="stylesheet" href="{% static 'dashboard/vendor/bootstrap.min.css' %}">
-    <link rel="stylesheet" href="{% static 'dashboard/utilities.css' %}">
+    <link rel="stylesheet" href="{% static 'dashboard/utilities.css' %}?v={% now 'U' %}">
     <script src="{% static 'dashboard/vendor/echarts.min.js' %}"></script>
     <link rel="stylesheet" href="{% static 'dashboard/liderman_theme.css' %}?v={% now 'U' %}">
 </head>
