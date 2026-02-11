@@ -2,6 +2,8 @@
 Dashboard Views - Vistas para el dashboard de métricas PA vs SV.
 """
 from io import BytesIO
+import logging
+import re
 
 from django.conf import settings
 from django.db.models import Sum, Count, Avg
@@ -23,6 +25,77 @@ MESES_ES = {
     5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
     9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
 }
+
+logger = logging.getLogger(__name__)
+
+# ─── Constantes de validación ────────────────────────────────────────────────
+PERIOD_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+ALLOWED_SORT_FIELDS = {"pa", "sv", "diferencia", "nombre", "Cliente_Final",
+                       "Unidad_Str", "Servicio_Limpio", "Personal_Real",
+                       "Personal_Estimado", "Diferencia", "Estado"}
+ALLOWED_SORT_ORDERS = {"asc", "desc"}
+
+
+# ─── Mixin de autenticación para APIs JSON ───────────────────────────────────
+class LoginRequiredJSONMixin:
+    """
+    Mixin que retorna 401 JSON en lugar de redirigir al login.
+    Esto es necesario para APIs llamadas via AJAX desde el dashboard.
+    """
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return JsonResponse(
+                {"error": {"code": "unauthorized", "message": "Autenticación requerida"}},
+                status=401
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+
+# ─── Funciones de validación ─────────────────────────────────────────────────
+def validate_pagination(request):
+    """
+    Valida y sanitiza parámetros de paginación.
+    Returns: (page, per_page, error_response_or_None)
+    """
+    try:
+        page = int(request.GET.get("page", 1))
+        per_page = int(request.GET.get("per_page", 20))
+    except (ValueError, TypeError):
+        return None, None, JsonResponse(
+            {"error": {"code": "invalid_param", "message": "page y per_page deben ser enteros"}},
+            status=400
+        )
+    page = max(1, page)
+    per_page = max(1, min(per_page, 100))
+    return page, per_page, None
+
+
+def validate_period(period_str):
+    """
+    Valida formato de periodo YYYY-MM.
+    Returns: (date_or_None, error_response_or_None)
+    """
+    if not period_str:
+        return None, None
+    if not PERIOD_RE.match(period_str):
+        return None, JsonResponse(
+            {"error": {"code": "invalid_param", "message": "Formato de periodo inválido. Use YYYY-MM"}},
+            status=400
+        )
+    from datetime import datetime
+    return datetime.strptime(f"{period_str}-01", "%Y-%m-%d").date(), None
+
+
+def validate_sort(sort_by, sort_order):
+    """
+    Valida campos de ordenamiento contra whitelist.
+    Returns: (safe_sort_by, safe_sort_order, error_response_or_None)
+    """
+    if sort_by and sort_by not in ALLOWED_SORT_FIELDS:
+        sort_by = None
+    if sort_order not in ALLOWED_SORT_ORDERS:
+        sort_order = "desc"
+    return sort_by, sort_order, None
 
 
 def format_period_spanish(date):
