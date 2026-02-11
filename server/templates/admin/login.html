@@ -1,0 +1,27 @@
+{% extends "admin/login.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .security-banner {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        color: #856404;
+        padding: 12px 16px;
+        margin-bottom: 20px;
+        border-radius: 6px;
+        font-size: 13px;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content_title %}
+<div class="security-banner">
+    &#9888;&#65039; <strong>Acceso restringido.</strong>
+    Toda actividad en este panel es monitoreada y registrada.
+    El uso no autorizado será reportado.
+</div>
+{{ block.super }}
+{% endblock %}

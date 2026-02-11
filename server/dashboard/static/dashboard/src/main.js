@@ -152,7 +152,7 @@ function setupTabs() {
 // ===== CARGAR PERIODOS =====
 async function loadPeriods() {
     try {
-        const apiPrefix = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/dashboard/';
+        const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
         const response = await fetch(`${apiPrefix}api/periods/?tenant=default`);
         const data = await response.json();
         const select = document.getElementById('period-select');
@@ -207,7 +207,7 @@ async function loadMetrics(period) {
         if (sector) params.append('sector', sector);
         if (gerente) params.append('gerente', gerente);
 
-        const apiPrefix = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/dashboard/';
+        const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
         const response = await fetch(`${apiPrefix}api/metrics/?${params.toString()}`);
         metricsData = await response.json();
 
@@ -605,7 +605,7 @@ function renderAllCharts(data) {
 async function loadClientData() {
     const search = document.getElementById('search-cliente')?.value || '';
     try {
-        const apiPrefix = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/dashboard/';
+        const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
         const url = await buildApiUrl(`${apiPrefix}api/clients/?tenant=default&period=${currentPeriod}&page=${clientPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
         const response = await fetch(url);
         const data = await response.json();
@@ -685,7 +685,7 @@ function updateClientPagination(data) {
 async function loadUnitData() {
     const search = document.getElementById('search-unidad')?.value || '';
     try {
-        const apiPrefix = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/dashboard/';
+        const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
         const url = await buildApiUrl(`${apiPrefix}api/units/?tenant=default&period=${currentPeriod}&page=${unitPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
         const response = await fetch(url);
         const data = await response.json();
@@ -764,7 +764,7 @@ function updateUnitPagination(data) {
 async function loadServiceData() {
     const search = document.getElementById('search-servicio')?.value || '';
     try {
-        const apiPrefix = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/dashboard/';
+        const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
         const url = await buildApiUrl(`${apiPrefix}api/services/?tenant=default&period=${currentPeriod}&page=${servicePage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
         const response = await fetch(url);
         const data = await response.json();
@@ -1017,7 +1017,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadTableData() {
     const search = document.getElementById('search-input').value;
     try {
-        const apiPrefix = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/dashboard/';
+        const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
         const url = await buildApiUrl(`${apiPrefix}api/details/?tenant=default&period=${currentPeriod}&page=${currentPage}&per_page=25&search=${encodeURIComponent(search)}&sort_by=${sortBy}&sort_order=${sortOrder}`);
         const response = await fetch(url);
         const data = await response.json();
@@ -1200,7 +1200,7 @@ async function runComparison() {
     };
 
     try {
-        const apiPrefix = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/dashboard/';
+        const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
         const response = await fetch(`${apiPrefix}api/compare/?tenant=default&period1=${currentPeriod}&period2=${p2}`);
         const data = await response.json();
 

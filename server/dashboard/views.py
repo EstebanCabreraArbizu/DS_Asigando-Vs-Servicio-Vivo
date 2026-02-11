@@ -6,6 +6,7 @@ import logging
 import re
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db.models import Sum, Count, Avg
 from django.http import JsonResponse
 from django.views import View
@@ -13,6 +14,11 @@ from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth import authenticate, login, logout
 from django.shortcuts import redirect, render
+
+from axes.helpers import get_client_ip_address, get_failure_limit
+from axes.utils import reset as axes_reset
+from captcha.models import CaptchaStore
+from captcha.helpers import captcha_image_url
 
 from jobs.models import AnalysisJob, AnalysisSnapshot, JobStatus, Artifact, ArtifactKind
 from jobs.utils import generate_analysis_metrics
@@ -1339,27 +1345,102 @@ class ServicesAPIView(LoginRequiredJSONMixin, View):
 
 
 class CustomLoginView(View):
-    """Vista de login personalizada que no expone el Django Admin."""
+    """Vista de login personalizada con protección contra brute force.
+    
+    Integra:
+    - django-axes para lockout tras 5 intentos fallidos (30 min)
+    - CAPTCHA después de 3 intentos fallidos
+    - Rate limiting vía IPRateLimitMiddleware
+    """
     template_name = "dashboard/login.html"
+    CAPTCHA_THRESHOLD = 3  # Mostrar CAPTCHA después de N intentos fallidos
+    
+    def _get_failed_attempts(self, request):
+        """Obtiene el número de intentos fallidos para la IP actual."""
+        client_ip = get_client_ip_address(request)
+        cache_key = f"login_attempts:{client_ip}"
+        return cache.get(cache_key, 0)
+    
+    def _increment_failed_attempts(self, request):
+        """Incrementa y retorna el contador de intentos fallidos."""
+        client_ip = get_client_ip_address(request)
+        cache_key = f"login_attempts:{client_ip}"
+        attempts = cache.get(cache_key, 0) + 1
+        cache.set(cache_key, attempts, 1800)  # 30 min TTL, consistente con AXES_COOLOFF_TIME
+        return attempts
+    
+    def _reset_failed_attempts(self, request):
+        """Resetea el contador de intentos fallidos tras login exitoso."""
+        client_ip = get_client_ip_address(request)
+        cache_key = f"login_attempts:{client_ip}"
+        cache.delete(cache_key)
+    
+    def _needs_captcha(self, request):
+        """Determina si debe mostrar CAPTCHA."""
+        return self._get_failed_attempts(request) >= self.CAPTCHA_THRESHOLD
+    
+    def _generate_captcha(self):
+        """Genera un nuevo CAPTCHA y retorna key + image_url."""
+        captcha_key = CaptchaStore.generate_key()
+        captcha_url = captcha_image_url(captcha_key)
+        return captcha_key, captcha_url
+    
+    def _build_context(self, request, error=None):
+        """Construye el contexto del template con estado de CAPTCHA."""
+        ctx = {}
+        if error:
+            ctx["error"] = error
+        attempts = self._get_failed_attempts(request)
+        ctx["failed_attempts"] = attempts
+        if attempts >= self.CAPTCHA_THRESHOLD:
+            captcha_key, captcha_url = self._generate_captcha()
+            ctx["captcha_key"] = captcha_key
+            ctx["captcha_image_url"] = captcha_url
+            ctx["show_captcha"] = True
+        return ctx
     
     def get(self, request):
         if request.user.is_authenticated:
             return redirect('dashboard:main')
-        return render(request, self.template_name)
+        return render(request, self.template_name, self._build_context(request))
     
     def post(self, request):
-        username = request.POST.get('username')
-        password = request.POST.get('password')
+        username = request.POST.get('username', '').strip()
+        password = request.POST.get('password', '')
         
+        # Verificar CAPTCHA si es requerido
+        if self._needs_captcha(request):
+            captcha_key = request.POST.get('captcha_key', '')
+            captcha_value = request.POST.get('captcha_value', '').strip()
+            
+            try:
+                captcha_obj = CaptchaStore.objects.get(hashkey=captcha_key)
+                if captcha_obj.response != captcha_value.lower():
+                    return render(request, self.template_name, self._build_context(
+                        request, error='Código de verificación incorrecto'
+                    ))
+            except CaptchaStore.DoesNotExist:
+                return render(request, self.template_name, self._build_context(
+                    request, error='Código de verificación expirado. Intente de nuevo.'
+                ))
+        
+        # authenticate() pasa por AxesStandaloneBackend que maneja el lockout
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
             login(request, user)
+            self._reset_failed_attempts(request)
             return redirect('dashboard:main')
         else:
-            return render(request, self.template_name, {
-                'error': 'Usuario o contraseña incorrectos'
-            })
+            attempts = self._increment_failed_attempts(request)
+            remaining = max(0, get_failure_limit(request, None) - attempts)
+            
+            if remaining == 0:
+                error = 'Cuenta bloqueada temporalmente. Intente de nuevo en 30 minutos.'
+            else:
+                error = f'Usuario o contraseña incorrectos. {remaining} intento(s) restante(s).'
+            
+            return render(request, self.template_name, self._build_context(request, error=error))
 
 
 class CustomLogoutView(LoginRequiredMixin, View):

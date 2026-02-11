@@ -121,13 +121,17 @@ class IPRateLimitMiddleware(MiddlewareMixin):
     
     # Configuración de límites por tipo de endpoint
     RATE_LIMITS = {
-        "auth": {"requests": 10, "window": 60, "block_time": 300},     # 10 req/min, bloqueo 5 min
+        "auth": {"requests": 5, "window": 60, "block_time": 1800},     # 5 req/min, bloqueo 30 min
         "upload": {"requests": 20, "window": 60, "block_time": 180},   # 20 req/min, bloqueo 3 min
         "api": {"requests": 200, "window": 60, "block_time": 60},      # 200 req/min, bloqueo 1 min
     }
     
-    # Patrones de endpoints sensibles
-    AUTH_PATTERNS = ["/api/v1/auth/login/", "/api/v1/auth/refresh/"]
+    # Patrones de endpoints sensibles (incluye login de dashboard y admin)
+    AUTH_PATTERNS = [
+        "/api/v1/auth/login/",
+        "/api/v1/auth/refresh/",
+        "/dashboard/login/",
+    ]
     UPLOAD_PATTERNS = ["/api/v1/jobs/", "/api/v1/upload/", "/dashboard/upload/"]
     
     # IPs que omiten rate limiting (configurables por env var)
@@ -217,7 +221,9 @@ class IPRateLimitMiddleware(MiddlewareMixin):
     
     def _get_endpoint_type(self, path: str) -> str:
         """Determina el tipo de endpoint para aplicar límites apropiados."""
-        if any(path.startswith(p) for p in self.AUTH_PATTERNS):
+        # Verificar si es ruta de autenticación (incluye admin login dinámico)
+        admin_url = "/" + os.getenv("DJANGO_ADMIN_URL", "panel-gestion").strip("/") + "/login/"
+        if path == admin_url or any(path.startswith(p) for p in self.AUTH_PATTERNS):
             return "auth"
         if any(path.startswith(p) for p in self.UPLOAD_PATTERNS):
             return "upload"
@@ -390,3 +396,65 @@ class RequestSanitizationMiddleware(MiddlewareMixin):
         """Verifica si el contenido tiene patrones sospechosos."""
         content_lower = content.lower()
         return any(pattern.lower() in content_lower for pattern in self.SUSPICIOUS_PATTERNS)
+
+
+class AdminIPRestrictionMiddleware(MiddlewareMixin):
+    """
+    Middleware que restringe el acceso al panel admin por IP.
+    
+    Solo permite acceso desde IPs configuradas en la variable de entorno
+    ADMIN_ALLOWED_IPS (separadas por coma). Si la variable está vacía o
+    no está definida, permite acceso desde cualquier IP (modo desarrollo).
+    
+    Retorna 404 (no 403) para no confirmar la existencia de la ruta.
+    
+    Variables de entorno:
+    - ADMIN_ALLOWED_IPS: IPs separadas por coma que pueden acceder al admin
+    - DJANGO_ADMIN_URL: Ruta personalizada del admin (default: panel-gestion)
+    """
+    
+    _allowed_ips: set[str] | None = None
+    _admin_prefix: str | None = None
+    
+    @classmethod
+    def _load_config(cls):
+        """Carga configuración desde variables de entorno."""
+        allowed = os.getenv("ADMIN_ALLOWED_IPS", "")
+        cls._allowed_ips = {ip.strip() for ip in allowed.split(",") if ip.strip()} if allowed.strip() else set()
+        cls._admin_prefix = "/" + os.getenv("DJANGO_ADMIN_URL", "panel-gestion").strip("/") + "/"
+    
+    def process_request(self, request: HttpRequest) -> HttpResponse | None:
+        # Cargar configuración al primer request
+        if self._admin_prefix is None:
+            self._load_config()
+        
+        # Solo actuar en rutas del admin
+        if not request.path.startswith(self._admin_prefix):
+            return None
+        
+        # Si no hay IPs configuradas, permitir acceso (modo desarrollo)
+        if not self._allowed_ips:
+            return None
+        
+        # Verificar IP del cliente
+        client_ip = self._get_client_ip(request)
+        
+        if client_ip not in self._allowed_ips:
+            logger.warning(
+                f"Acceso al admin denegado - IP: {client_ip}, Path: {request.path}"
+            )
+            # Devolver 404, no 403 — no confirmar existencia de la ruta
+            from django.http import Http404
+            raise Http404()
+        
+        return None
+    
+    def _get_client_ip(self, request: HttpRequest) -> str:
+        """Obtiene la IP real del cliente, considerando proxies."""
+        cf_ip = request.META.get("HTTP_CF_CONNECTING_IP")
+        if cf_ip:
+            return cf_ip.strip()
+        x_real_ip = request.META.get("HTTP_X_REAL_IP")
+        if x_real_ip:
+            return x_real_ip.strip()
+        return request.META.get("REMOTE_ADDR", "unknown")

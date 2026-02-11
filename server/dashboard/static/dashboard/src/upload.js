@@ -30,7 +30,7 @@ let jobToDelete = null;
 
 // Inicialización
 document.addEventListener('DOMContentLoaded', () => {
-    if (window.USER_PERMISSIONS && window.USER_PERMISSIONS.canUpload) {
+    if (document.body.dataset.canUpload === 'true') {
         setupDropzone('pa');
         setupDropzone('sv');
 
@@ -134,7 +134,7 @@ function formatFileSize(bytes) {
 // Submit handler
 document.addEventListener('DOMContentLoaded', () => {
     const submitBtn = document.getElementById('submit-btn');
-    if (submitBtn && window.USER_PERMISSIONS && window.USER_PERMISSIONS.canUpload) {
+    if (submitBtn && document.body.dataset.canUpload === 'true') {
         submitBtn.addEventListener('click', async () => {
             if (!filePA || !fileSV) return;
 
@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Enviar archivos
                 updateProgress(10, 'Subiendo archivos...');
 
-                const apiRoot = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/';
+                const apiRoot = document.body.dataset.apiRoot || '/dashboard/';
                 const response = await fetch(`${apiRoot}api/v1/jobs/`, {
                     method: 'POST',
                     body: formData,
@@ -192,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function pollJobStatus() {
     pollInterval = setInterval(async () => {
         try {
-            const apiRoot = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/';
+            const apiRoot = document.body.dataset.apiRoot || '/dashboard/';
             const response = await fetch(`${apiRoot}api/v1/jobs/${currentJobId}/status/`, {
                 credentials: 'same-origin'
             });
@@ -228,7 +228,7 @@ function updateProgress(percent, status) {
 
 // Mostrar éxito
 function showSuccess() {
-    const apiRoot = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/';
+    const apiRoot = document.body.dataset.apiRoot || '/dashboard/';
     document.getElementById('progress-section').classList.add('hidden');
     document.getElementById('result-section').classList.remove('hidden');
     document.getElementById('result-success').classList.remove('hidden');
@@ -263,7 +263,7 @@ function resetForm() {
 
 // CRUD: Eliminar job
 async function deleteJob(jobId) {
-    if (!window.USER_PERMISSIONS || !window.USER_PERMISSIONS.canDelete) {
+    if (document.body.dataset.canDelete !== 'true') {
         alert('No tienes permisos para eliminar análisis');
         return;
     }
@@ -280,7 +280,7 @@ async function confirmDelete() {
     if (!jobToDelete) return;
 
     try {
-        const apiRoot = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/';
+        const apiRoot = document.body.dataset.apiRoot || '/dashboard/';
         const response = await fetch(`${apiRoot}api/v1/jobs/${jobToDelete}/`, {
             method: 'DELETE',
             credentials: 'same-origin'
@@ -307,7 +307,7 @@ async function confirmDelete() {
 // Refrescar lista de jobs
 async function refreshJobsList() {
     try {
-        const apiRoot = window.DashboardConfig ? window.DashboardConfig.apiRoot : '/';
+        const apiRoot = document.body.dataset.apiRoot || '/dashboard/';
         const response = await fetch(`${apiRoot}api/v1/jobs/?limit=10`, {
             credentials: 'same-origin'
         });

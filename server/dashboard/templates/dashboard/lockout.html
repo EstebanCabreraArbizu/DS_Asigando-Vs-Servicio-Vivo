@@ -1,0 +1,55 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cuenta Bloqueada - Dashboard PA vs SV</title>
+    <link rel="stylesheet" href="{% static 'dashboard/vendor/bootstrap.min.css' %}">
+    <link rel="stylesheet" href="{% static 'dashboard/utilities.css' %}">
+    <link rel="stylesheet" href="{% static 'dashboard/liderman_theme.css' %}">
+</head>
+
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="hud-panel rounded-2xl shadow-2xl p-8 w-full max-w-md">
+        <!-- Logo y Título -->
+        <div class="text-center mb-8">
+            <img src="{% static 'dashboard/Logo.jpeg' %}" alt="Logo" class="h-16 mx-auto mb-4"
+                onerror="this.style.display='none'">
+            <h1 class="text-2xl font-bold text-gray-800">Acceso Bloqueado</h1>
+        </div>
+
+        <!-- Mensaje de bloqueo -->
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-4 rounded-lg mb-6 text-center">
+            <div class="text-3xl mb-2">&#128274;</div>
+            <p class="font-semibold mb-2">Cuenta bloqueada temporalmente</p>
+            <p class="text-sm">
+                Se han detectado demasiados intentos fallidos de inicio de sesión.
+                Por seguridad, el acceso ha sido bloqueado durante
+                <strong>30 minutos</strong>.
+            </p>
+        </div>
+
+        <div class="bg-yellow-50 border border-yellow-300 text-yellow-800 px-4 py-3 rounded-lg mb-6 text-sm">
+            <p class="font-medium mb-1">&#9888; Actividad registrada</p>
+            <p>Todos los intentos de acceso son monitoreados y registrados.</p>
+        </div>
+
+        <!-- Enlace de regreso -->
+        <div class="text-center">
+            <a href="{% url 'dashboard:login' %}"
+                class="inline-block bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition text-sm font-medium">
+                Volver al inicio de sesión
+            </a>
+        </div>
+
+        <!-- Pie de página -->
+        <div class="mt-8 text-center text-gray-400 text-xs">
+            <p>&copy; 2026 Sistema de Análisis PA vs SV</p>
+            <p class="mt-1">Todos los derechos reservados</p>
+        </div>
+    </div>
+</body>
+
+</html>

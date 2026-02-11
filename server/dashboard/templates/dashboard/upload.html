@@ -11,7 +11,12 @@
     <link rel="stylesheet" href="{% static 'dashboard/liderman_theme.css' %}">
 </head>
 
-<body class="min-h-screen">
+<body class="min-h-screen" data-api-root="{% url 'dashboard:main' %}"
+      data-can-upload="{{ permissions.can_upload|yesno:'true,false' }}"
+      data-can-delete="{{ permissions.can_delete|yesno:'true,false' }}"
+      data-can-export="{{ permissions.can_export|yesno:'true,false' }}"
+      data-can-view="{{ permissions.can_view|yesno:'true,false' }}"
+      data-role="{{ permissions.role }}">
     <!-- Header -->
     <header>
         <div class="container mx-auto px-6 py-4">
@@ -326,22 +331,6 @@
             </div>
         </div>
     </div>
-
-    <script>
-        // Configuracion con permisos del usuario
-        window.USER_PERMISSIONS = {
-            canUpload: {{ permissions.can_upload | yesno: "true,false" }},
-        canDelete: { { permissions.can_delete | yesno: "true,false" } },
-        canExport: { { permissions.can_export | yesno: "true,false" } },
-        canView: { { permissions.can_view | yesno: "true,false" } },
-        role: "{{ permissions.role }}"
-        };
-
-        // Configuración dinámica para API
-        window.DashboardConfig = {
-            apiRoot: "{% url 'dashboard:main' %}"
-        };
-    </script>
     <script src="{% static 'dashboard/upload.js' %}"></script>
 </body>
 

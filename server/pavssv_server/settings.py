@@ -49,6 +49,9 @@ INSTALLED_APPS = [
     "jobs",
     "api_v1",
     "dashboard",
+    # Security & Admin protection
+    "axes",
+    "captcha",
 ]
 
 MIDDLEWARE = [
@@ -67,14 +70,26 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Brute force protection (django-axes) - debe ir después de AuthenticationMiddleware
+    "axes.middleware.AxesMiddleware",
+    # Restricción de IP para panel admin
+    "pavssv_server.middleware.AdminIPRestrictionMiddleware",
 ]
 
 ROOT_URLCONF = "pavssv_server.urls"
 
+# =============================================================================
+# AUTHENTICATION BACKENDS (django-axes para brute-force protection)
+# =============================================================================
+AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -432,6 +447,33 @@ PERMISSIONS_POLICY = {
     "payment": [],
     "usb": [],
 }
+
+# =============================================================================
+# DJANGO-AXES: Brute Force Protection (Obs 7)
+# =============================================================================
+from datetime import timedelta
+
+AXES_FAILURE_LIMIT = 5                                    # Max 5 intentos fallidos
+AXES_COOLOFF_TIME = timedelta(minutes=30)                 # Lockout de 30 minutos
+AXES_LOCK_OUT_BY_COMBINATION_USER_AND_IP = True           # Lockout por user+IP
+AXES_RESET_ON_SUCCESS = True                              # Reset contador en login exitoso
+AXES_LOCKOUT_TEMPLATE = "dashboard/lockout.html"          # Template custom de lockout
+AXES_META_PRECEDENCE_ORDER = [                            # Consistente con Cloudflare
+    "HTTP_CF_CONNECTING_IP",
+    "HTTP_X_REAL_IP",
+    "REMOTE_ADDR",
+]
+AXES_VERBOSE = not DEBUG                                  # Logs detallados solo en prod
+AXES_ENABLE_ACCESS_FAILURE_LOG = True                      # Registrar fallos en DB
+
+# =============================================================================
+# DJANGO-SIMPLE-CAPTCHA
+# =============================================================================
+CAPTCHA_LENGTH = 5
+CAPTCHA_FONT_SIZE = 28
+CAPTCHA_NOISE_FUNCTIONS = ("captcha.helpers.noise_dots",)
+CAPTCHA_CHALLENGE_FUNCT = "captcha.helpers.math_challenge"  # Desafío matemático (más accesible)
+CAPTCHA_TIMEOUT = 5  # 5 minutos para resolver
 
 # =============================================================================
 # CELERY CONFIGURATION

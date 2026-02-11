@@ -9,22 +9,10 @@
     <link rel="stylesheet" href="{% static 'dashboard/vendor/bootstrap.min.css' %}">
     <link rel="stylesheet" href="{% static 'dashboard/utilities.css' %}">
     <script src="{% static 'dashboard/vendor/echarts.min.js' %}"></script>
-    <style>
-        /* Base optimizations */
-        .loading-overlay {
-            background: rgba(255, 255, 255, 0.9);
-        }
-
-        .table-fixed-header thead {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-    </style>
     <link rel="stylesheet" href="{% static 'dashboard/liderman_theme.css' %}?v={% now 'U' %}">
 </head>
 
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-100 min-h-screen" data-api-root="{% url 'dashboard:main' %}">
     <!-- Header -->
     <header class="bg-gradient-to-r from-blue-700 to-blue-600 text-white shadow-lg">
         <div class="container mx-auto px-4 py-4">
@@ -523,14 +511,6 @@
             </div>
         </div>
     </div>
-
-    <script>
-        // Configuración dinámica para JavaScript
-        window.DashboardConfig = {
-            // Eliminar el último componente para obtener la raíz del dashboard (ej: /dashboard/)
-            apiRoot: "{% url 'dashboard:main' %}"
-        };
-    </script>
     <script src="{% static 'dashboard/main.js' %}"></script>
 </body>
 
