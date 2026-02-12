@@ -420,7 +420,7 @@ CSRF_TRUSTED_ORIGINS = [
 # Todas las librerías (Bootstrap, ECharts) se sirven localmente via WhiteNoise
 CSP_DEFAULT_SRC = ("'self'",)
 CSP_SCRIPT_SRC = (
-    "'self'"
+    "'self'",
 )
 CSP_STYLE_SRC = (
     "'self'",
