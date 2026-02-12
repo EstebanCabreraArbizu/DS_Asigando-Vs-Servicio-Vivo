@@ -377,7 +377,11 @@ CSRF_COOKIE_AGE = 900     # 15 minutos en segundos
 
 # Cookies seguras (siempre activas, independiente de DEBUG)
 SESSION_COOKIE_HTTPONLY = True       # Impide acceso a la cookie de sesión desde JS
-CSRF_COOKIE_HTTPONLY = True          # Impide acceso a la cookie CSRF desde JS
+# CSRF_COOKIE_HTTPONLY debe ser False porque Django admin (5.x) necesita leer
+# el token CSRF desde JavaScript para operaciones AJAX (autocomplete, inline formsets,
+# filtros dinámicos, etc.). Sin esto, las acciones del admin fallan con 403 Forbidden.
+# Esto NO reduce la seguridad CSRF ya que el token solo protege contra ataques cross-site.
+CSRF_COOKIE_HTTPONLY = False
 SESSION_COOKIE_SAMESITE = "Lax"      # Previene envío cross-site
 CSRF_COOKIE_SAMESITE = "Lax"         # Previene envío cross-site
 SESSION_COOKIE_NAME = "__Host-sessionid"  # Prefijo __Host requiere Secure + path=/

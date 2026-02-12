@@ -36,11 +36,30 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
     - Referrer-Policy
     - Permissions-Policy
     - Cache-Control para datos sensibles
+    
+    Nota: Django admin requiere 'unsafe-inline' y 'unsafe-eval' para scripts.
+    Se aplica un CSP más permisivo automáticamente en rutas del admin.
     """
     
+    _admin_prefix: str | None = None
+    
+    @classmethod
+    def _get_admin_prefix(cls) -> str:
+        import os
+        if cls._admin_prefix is None:
+            cls._admin_prefix = "/" + os.getenv("DJANGO_ADMIN_URL", "panel-gestion").strip("/") + "/"
+        return cls._admin_prefix
+    
+    def _is_admin_path(self, path: str) -> bool:
+        """Detecta si la ruta pertenece al panel de administración de Django."""
+        return path.startswith(self._get_admin_prefix())
+    
     def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
-        # Content Security Policy
-        csp_directives = self._build_csp_header()
+        # Content Security Policy — más permisivo para admin de Django
+        if self._is_admin_path(request.path):
+            csp_directives = self._build_admin_csp_header()
+        else:
+            csp_directives = self._build_csp_header()
         if csp_directives:
             response["Content-Security-Policy"] = csp_directives
         
@@ -102,6 +121,32 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
             if values:
                 directives.append(f"{directive} {' '.join(values)}")
         
+        return "; ".join(directives)
+    
+    def _build_admin_csp_header(self) -> str:
+        """CSP relajado para el admin de Django.
+        
+        Django admin (5.x) requiere:
+        - 'unsafe-inline' en script-src: templates del admin usan <script> inline
+        - 'unsafe-eval' en script-src: select2 y otras dependencias del admin lo necesitan
+        - 'unsafe-inline' en style-src: estilos inline del admin
+        - data: en img-src: iconos SVG inline del admin
+        
+        Este CSP solo aplica a rutas del admin, que ya están protegidas por
+        autenticación staff + AdminIPRestrictionMiddleware.
+        """
+        directives = [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+            "img-src 'self' data: https:",
+            "font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com",
+            "connect-src 'self'",
+            "frame-ancestors 'none'",
+            "form-action 'self'",
+            "base-uri 'self'",
+            "object-src 'none'",
+        ]
         return "; ".join(directives)
 
 
@@ -438,25 +483,64 @@ class AdminIPRestrictionMiddleware(MiddlewareMixin):
         if not self._allowed_ips:
             return None
         
-        # Verificar IP del cliente
-        client_ip = self._get_client_ip(request)
+        # Verificar IP del cliente — probar TODOS los posibles IPs del cliente
+        # para mayor robustez detrás de proxies (Cloudflare, Nginx, etc.)
+        client_ips = self._get_all_client_ips(request)
+        primary_ip = client_ips[0] if client_ips else "unknown"
         
-        if client_ip not in self._allowed_ips:
-            logger.warning(
-                f"Acceso al admin denegado - IP: {client_ip}, Path: {request.path}"
-            )
-            # Devolver 404, no 403 — no confirmar existencia de la ruta
-            from django.http import Http404
-            raise Http404()
+        # Permitir si CUALQUIERA de las IPs detectadas está en la lista permitida
+        if any(ip in self._allowed_ips for ip in client_ips):
+            return None
         
-        return None
+        logger.warning(
+            f"Acceso al admin denegado - IPs detectadas: {client_ips}, "
+            f"IPs permitidas: {self._allowed_ips}, Path: {request.path}, "
+            f"Headers: CF-Connecting-IP={request.META.get('HTTP_CF_CONNECTING_IP', 'N/A')}, "
+            f"X-Real-IP={request.META.get('HTTP_X_REAL_IP', 'N/A')}, "
+            f"X-Forwarded-For={request.META.get('HTTP_X_FORWARDED_FOR', 'N/A')}, "
+            f"REMOTE_ADDR={request.META.get('REMOTE_ADDR', 'N/A')}"
+        )
+        # Devolver 404, no 403 — no confirmar existencia de la ruta
+        from django.http import Http404
+        raise Http404()
     
-    def _get_client_ip(self, request: HttpRequest) -> str:
-        """Obtiene la IP real del cliente, considerando proxies."""
+    def _get_all_client_ips(self, request: HttpRequest) -> list[str]:
+        """Obtiene TODAS las posibles IPs del cliente desde todos los headers de proxy.
+        
+        Retorna una lista de IPs únicas en orden de confianza:
+        1. CF-Connecting-IP (Cloudflare - más confiable detrás de CF)
+        2. X-Real-IP (Nginx proxy)
+        3. X-Forwarded-For (proxy estándar - puede contener múltiples IPs)
+        4. REMOTE_ADDR (conexión directa)
+        """
+        ips = []
+        seen = set()
+        
+        def _add(ip: str):
+            ip = ip.strip()
+            if ip and ip != "unknown" and ip not in seen:
+                seen.add(ip)
+                ips.append(ip)
+        
+        # Cloudflare
         cf_ip = request.META.get("HTTP_CF_CONNECTING_IP")
         if cf_ip:
-            return cf_ip.strip()
+            _add(cf_ip)
+        
+        # Nginx Proxy Manager
         x_real_ip = request.META.get("HTTP_X_REAL_IP")
         if x_real_ip:
-            return x_real_ip.strip()
-        return request.META.get("REMOTE_ADDR", "unknown")
+            _add(x_real_ip)
+        
+        # X-Forwarded-For puede tener múltiples IPs: "client, proxy1, proxy2"
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            for ip_part in xff.split(","):
+                _add(ip_part)
+        
+        # REMOTE_ADDR — siempre disponible
+        remote_addr = request.META.get("REMOTE_ADDR")
+        if remote_addr:
+            _add(remote_addr)
+        
+        return ips if ips else ["unknown"]
