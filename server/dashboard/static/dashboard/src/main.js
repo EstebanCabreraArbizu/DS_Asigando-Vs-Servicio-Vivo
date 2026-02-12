@@ -1069,7 +1069,7 @@ function updatePagination(data) {
 // ===== EVENT LISTENERS =====
 function setupEventListeners() {
     // logout
-    document.getElementById('logout-btn').addEventListener('click', (e) => {
+    document.getElementById('logout-btn')?.addEventListener('click', (e) => {
         e.preventDefault();
         document.getElementById('logout-form').submit();
     });

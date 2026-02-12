@@ -270,14 +270,12 @@ function resetForm() {
     currentJobId = null;
     if (pollInterval) clearInterval(pollInterval);
 }
-document.getElementById('clear-pa-btn')?.addEventListener('click', (e) => {e.stopPropagation(); clearFile('pa');});
-document.getElementById('clear-sv-btn')?.addEventListener('click', (e) => {e.stopPropagation(); clearFile('sv');});
 document.getElementById('reset-form-btn')?.addEventListener('click', resetForm);
 document.getElementById('reset-form-btn-2')?.addEventListener('click', resetForm);
 document.getElementById('refresh-jobs-btn')?.addEventListener('click', refreshJobsList);
 document.getElementById('cancel-delete-btn')?.addEventListener('click', closeDeleteModal);
 document.getElementById('confirm-delete-btn')?.addEventListener('click', confirmDelete);
-document.getElementById('logout-btn').addEventListener('click', (e) => {
+document.getElementById('logout-btn')?.addEventListener('click', (e) => {
     e.preventDefault();
     document.getElementById('logout-form').submit();
 });
