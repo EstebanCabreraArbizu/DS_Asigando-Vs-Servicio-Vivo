@@ -220,6 +220,7 @@ class IPRateLimitMiddleware(MiddlewareMixin):
         return request.META.get("REMOTE_ADDR", "unknown")
     
     def _get_endpoint_type(self, path: str) -> str:
+        import os
         """Determina el tipo de endpoint para aplicar límites apropiados."""
         # Verificar si es ruta de autenticación (incluye admin login dinámico)
         admin_url = "/" + os.getenv("DJANGO_ADMIN_URL", "panel-gestion").strip("/") + "/login/"
@@ -418,6 +419,7 @@ class AdminIPRestrictionMiddleware(MiddlewareMixin):
     
     @classmethod
     def _load_config(cls):
+        import os
         """Carga configuración desde variables de entorno."""
         allowed = os.getenv("ADMIN_ALLOWED_IPS", "")
         cls._allowed_ips = {ip.strip() for ip in allowed.split(",") if ip.strip()} if allowed.strip() else set()
