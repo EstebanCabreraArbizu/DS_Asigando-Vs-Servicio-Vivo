@@ -70,6 +70,14 @@ header p {
     color: var(--text-muted) !important;
 }
 
+header label,
+header .text-white,
+header .text-blue-50,
+header .text-blue-200,
+header .text-white-100 {
+    color: var(--text-muted) !important;
+}
+
 /* Navigation Tabs */
 .tab-btn {
     color: var(--text-muted);

@@ -36,6 +36,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Listener para el periodo
         document.getElementById('period-month')?.addEventListener('change', updateSubmitButton);
+
+        // Listeners para botones de quitar archivo
+        document.getElementById('clear-pa-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            clearFile('pa');
+        });
+        document.getElementById('clear-sv-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            clearFile('sv');
+        });
     }
 });
 
@@ -260,19 +270,39 @@ function resetForm() {
     currentJobId = null;
     if (pollInterval) clearInterval(pollInterval);
 }
-
+document.getElementById('clear-pa-btn')?.addEventListener('click', (e) => {e.stopPropagation(); clearFile('pa');});
+document.getElementById('clear-sv-btn')?.addEventListener('click', (e) => {e.stopPropagation(); clearFile('sv');});
+document.getElementById('reset-form-btn')?.addEventListener('click', resetForm);
+document.getElementById('reset-form-btn-2')?.addEventListener('click', resetForm);
+document.getElementById('refresh-jobs-btn')?.addEventListener('click', refreshJobsList);
+document.getElementById('cancel-delete-btn')?.addEventListener('click', closeDeleteModal);
+document.getElementById('confirm-delete-btn')?.addEventListener('click', confirmDelete);
+document.getElementById('logout-btn').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('logout-form').submit();
+});
 // CRUD: Eliminar job
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.delete-job-btn');
+    if (btn) deleteJob(btn.dataset.jobId);
+});
 async function deleteJob(jobId) {
     if (document.body.dataset.canDelete !== 'true') {
         alert('No tienes permisos para eliminar análisis');
         return;
     }
     jobToDelete = jobId;
-    document.getElementById('delete-modal').classList.remove('hidden');
+    const modal = document.getElementById('delete-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
 }
 
 function closeDeleteModal() {
-    document.getElementById('delete-modal')?.classList.add('hidden');
+    const modal = document.getElementById('delete-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
     jobToDelete = null;
 }
 

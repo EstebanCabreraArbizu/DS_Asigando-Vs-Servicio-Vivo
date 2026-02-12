@@ -26,7 +26,7 @@
                 </div>
                 <div class="flex items-center gap-3 flex-wrap">
                     <div class="flex items-center gap-2">
-                        <label class="text-sm text-white-100">Periodo:</label>
+                        <label class="text-sm text-gray-700">Periodo:</label>
                         <select id="period-select"
                             class="text-gray-800 px-3 py-1.5 rounded border-0 text-sm focus:ring-2 focus:ring-blue-300">
                             <option value="">Cargando...</option>
@@ -53,7 +53,7 @@
                         <form id="logout-form" action="{% url 'dashboard:logout' %}" method="post" class="hidden">
                             {% csrf_token %}
                         </form>
-                        <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
+                        <a href="#" id="logout-btn"
                             class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm transition">
                             Salir
                         </a>
@@ -133,7 +133,7 @@
     </div>
 
     <!-- Loading Overlay -->
-    <div id="loading" class="hidden fixed inset-0 loading-overlay z-50 flex items-center justify-center">
+    <div id="loading" class="hidden fixed inset-0 loading-overlay z-50 items-center justify-center">
         <div class="bg-white p-6 rounded-lg shadow-lg flex items-center gap-4">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             <span class="text-gray-700">Cargando datos...</span>
@@ -487,7 +487,7 @@
     </main>
 
     <!-- Compare Modal -->
-    <div id="compare-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div id="compare-modal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-xl">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold">📊 Comparar Periodos</h3>

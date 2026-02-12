@@ -1068,6 +1068,12 @@ function updatePagination(data) {
 
 // ===== EVENT LISTENERS =====
 function setupEventListeners() {
+    // logout
+    document.getElementById('logout-btn').addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('logout-form').submit();
+    });
+
     // Periodo
     document.getElementById('period-select').addEventListener('change', e => {
         currentPeriod = e.target.value;
@@ -1136,8 +1142,16 @@ function setupEventListeners() {
     });
 
     // Modal comparación
-    document.getElementById('compare-btn').addEventListener('click', () => document.getElementById('compare-modal').classList.remove('hidden'));
-    document.getElementById('close-modal').addEventListener('click', () => document.getElementById('compare-modal').classList.add('hidden'));
+    document.getElementById('compare-btn').addEventListener('click', () => {
+        const modal = document.getElementById('compare-modal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    });
+    document.getElementById('close-modal').addEventListener('click', () => {
+        const modal = document.getElementById('compare-modal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    });
     document.getElementById('run-compare').addEventListener('click', runComparison);
 
     // Exportar
@@ -1241,7 +1255,11 @@ const formatDateSpanish = (dateStr) => {
     }
 };
 
-function showLoading(show) { document.getElementById('loading').classList.toggle('hidden', !show); }
+function showLoading(show) {
+    const el = document.getElementById('loading');
+    el.classList.toggle('hidden', !show);
+    el.classList.toggle('flex', show);
+}
 function showNoData() { document.querySelectorAll('[id^="kpi-"]').forEach(el => el.textContent = '--'); }
 function formatNumber(n) {
     if (n == null) return '-';

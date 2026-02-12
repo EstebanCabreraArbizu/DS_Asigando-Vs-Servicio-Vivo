@@ -420,8 +420,7 @@ CSRF_TRUSTED_ORIGINS = [
 # Todas las librerías (Bootstrap, ECharts) se sirven localmente via WhiteNoise
 CSP_DEFAULT_SRC = ("'self'",)
 CSP_SCRIPT_SRC = (
-    "'self'",
-    "'unsafe-inline'",  # Necesario para <script> inline del dashboard config
+    "'self'"
 )
 CSP_STYLE_SRC = (
     "'self'",

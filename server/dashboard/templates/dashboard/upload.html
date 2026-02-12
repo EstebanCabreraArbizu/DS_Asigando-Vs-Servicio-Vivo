@@ -44,7 +44,7 @@
                     <form id="logout-form" action="{% url 'dashboard:logout' %}" method="post" class="hidden">
                         {% csrf_token %}
                     </form>
-                    <a href="#" onclick="document.getElementById('logout-form').submit(); return false;"
+                    <a href="#" id="logout-btn"
                         class="bg-red-100 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-200 transition">
                         Salir
                     </a>
@@ -86,7 +86,7 @@
                             </svg>
                             <p class="text-green-700 font-medium" id="file-pa-name"></p>
                             <p class="text-gray-500 text-sm" id="file-pa-size"></p>
-                            <button type="button" onclick="clearFile('pa')"
+                            <button type="button" id="clear-pa-btn"
                                 class="mt-2 text-red-500 text-sm hover:underline">Quitar</button>
                         </div>
                     </div>
@@ -118,7 +118,7 @@
                             </svg>
                             <p class="text-green-700 font-medium" id="file-sv-name"></p>
                             <p class="text-gray-500 text-sm" id="file-sv-size"></p>
-                            <button type="button" onclick="clearFile('sv')"
+                            <button type="button" id="clear-sv-btn"
                                 class="mt-2 text-red-500 text-sm hover:underline">Quitar</button>
                         </div>
                     </div>
@@ -182,7 +182,7 @@
                             class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2">
                             Ver en Dashboard
                         </a>
-                        <button onclick="resetForm()"
+                        <button id="reset-form-btn"
                             class="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition">
                             Nuevo Análisis
                         </button>
@@ -199,7 +199,7 @@
                             <p id="error-message" class="text-sm text-red-600"></p>
                         </div>
                     </div>
-                    <button onclick="resetForm()"
+                    <button id="reset-form-btn-2"
                         class="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
                         Intentar de nuevo
                     </button>
@@ -228,7 +228,7 @@
         <section class="bg-white rounded-xl p-8">
             <div class="flex items-center justify-between mb-6">
                 <h2 class="hud-title text-xl">Historial de Análisis</h2>
-                <button onclick="refreshJobsList()"
+                <button id="refresh-jobs-btn"
                     class="text-blue-600 hover:underline text-sm flex items-center gap-1">
                     Actualizar
                 </button>
@@ -287,7 +287,7 @@
                                     {% endif %}
 
                                     {% if permissions.can_delete %}
-                                    <button onclick="deleteJob('{{ job.id }}')" class="text-red-500 hover:text-red-700"
+                                    <button class="delete-job-btn text-red-500 hover:text-red-700" data-job-id = "{{job.id}}"
                                         title="Eliminar">Eliminar</button>
                                     {% endif %}
                                 </div>
@@ -318,15 +318,15 @@
     </main>
 
     <!-- Delete Confirmation Modal -->
-    <div id="delete-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div id="delete-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50">
         <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
             <h3 class="text-lg font-medium text-gray-900 mb-4">Confirmar eliminación</h3>
             <p class="text-gray-600 mb-6">¿Estás seguro de eliminar este análisis? Esta acción no se puede deshacer.
             </p>
             <div class="flex gap-3 justify-end">
-                <button onclick="closeDeleteModal()"
+                <button id="cancel-delete-btn"
                     class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
-                <button id="confirm-delete-btn" onclick="confirmDelete()"
+                <button id="confirm-delete-btn"
                     class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Eliminar</button>
             </div>
         </div>

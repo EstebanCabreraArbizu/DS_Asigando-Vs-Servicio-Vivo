@@ -7,16 +7,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión - Dashboard PA vs SV</title>
     <link rel="stylesheet" href="{% static 'dashboard/vendor/bootstrap.min.css' %}">
-    <link rel="stylesheet" href="{% static 'dashboard/utilities.css' %}">
-    <link rel="stylesheet" href="{% static 'dashboard/liderman_theme.css' %}">
+    <link rel="stylesheet" href="{% static 'dashboard/utilities.css' %} ?v={% now 'U' %}">
+    <link rel="stylesheet" href="{% static 'dashboard/liderman_theme.css' %} ?v={% now 'U' %}">
 </head>
 
 <body class="min-h-screen flex items-center justify-center p-4">
     <div class="hud-panel rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <!-- Logo y Título -->
         <div class="text-center mb-8">
-            <img src="{% static 'dashboard/Logo.jpeg' %}" alt="Logo" class="h-16 mx-auto mb-4"
-                onerror="this.style.display='none'">
+            <img src="{% static 'dashboard/Logo.jpeg' %}" alt="Logo" class="h-16 mx-auto mb-4">
             <h1 class="text-2xl font-bold text-gray-800">Dashboard PA vs SV</h1>
             <p class="text-gray-500 text-sm mt-1">Análisis de Personal Asignado vs Servicio Vivo</p>
         </div>
