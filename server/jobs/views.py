@@ -397,8 +397,16 @@ class JobListView(APIView):
             jobs = jobs.filter(status=status_filter)
         
         # Paginación simple
-        limit = int(request.query_params.get("limit", 20))
-        offset = int(request.query_params.get("offset", 0))
+        try:
+            limit = int(request.query_params.get("limit", 20))
+            offset = int(request.query_params.get("offset", 0))
+        except (ValueError, TypeError):
+            return Response(
+                {"error": {"code": "invalid_param", "message": "limit y offset deben ser enteros"}},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        limit = max(1, min(limit, 100))
+        offset = max(0, offset)
         
         total = jobs.count()
         jobs = jobs[offset:offset + limit]

@@ -365,6 +365,11 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
         tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")  # Formato: YYYY-MM
         
+        # Validar periodo
+        period_date, period_err = validate_period(period)
+        if period_err:
+            return period_err
+        
         # Filtros opcionales recibidos desde frontend
         request_filters = {
             "macrozona": request.GET.get("macrozona", ""),
@@ -380,9 +385,7 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
         
         # Buscar snapshot del periodo (consulta de snapshots/jobs no incluye filtros de UI)
         snapshot_query = {"tenant": tenant}
-        if period:
-            from datetime import datetime
-            period_date = datetime.strptime(f"{period}-01", "%Y-%m-%d").date()
+        if period and period_date:
             snapshot_query["period_month"] = period_date
 
         snapshot = AnalysisSnapshot.objects.filter(**snapshot_query).order_by("-period_month").first()
