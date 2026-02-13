@@ -324,14 +324,26 @@ El sistema configura automáticamente:
 
 ### 5. Rate Limiting
 
+El sistema implementa rate limiting a nivel de middleware Django (`IPRateLimitMiddleware`):
+
 ```python
-REST_FRAMEWORK = {
-    "DEFAULT_THROTTLE_RATES": {
-        "anon": "100/hour",
-        "user": "1000/hour",
-    }
+# Límites por tipo de endpoint
+RATE_LIMITS = {
+    "auth":   {"requests": 5,   "window": 60, "block_time": 1800},  # 5 req/min, bloqueo 30 min
+    "upload": {"requests": 20,  "window": 60, "block_time": 180},   # 20 req/min, bloqueo 3 min
+    "api":    {"requests": 200, "window": 60, "block_time": 60},    # 200 req/min, bloqueo 1 min
 }
+
+# Endpoints de autenticación protegidos (incluye login de dashboard y admin)
+AUTH_PATTERNS = [
+    "/api/v1/auth/login/",
+    "/api/v1/auth/refresh/",
+    "/dashboard/login/",
+    "/{DJANGO_ADMIN_URL}/login/",  # Dinámico según variable de entorno
+]
 ```
+
+Adicionalmente, `django-axes` bloquea por user+IP después de 5 intentos fallidos (30 min de cooldown).
 
 ### 6. Logs de Auditoría
 
@@ -392,10 +404,80 @@ Cada acción crítica se registra con:
 
 | Middleware | Función |
 |------------|---------|
-| `SecurityHeadersMiddleware` | Añade CSP, X-Frame-Options, Referrer-Policy |
-| `IPRateLimitMiddleware` | Rate limiting por IP y endpoint |
-| `AuditLoggingMiddleware` | Logging de acciones críticas |
-| `RequestSanitizationMiddleware` | Sanitización de inputs |
+| `SecurityHeadersMiddleware` | Añade CSP, X-Frame-Options, Referrer-Policy. CSP diferenciado para admin vs dashboard |
+| `IPRateLimitMiddleware` | Rate limiting por IP y endpoint (auth: 5 req/min, upload: 20 req/min, api: 200 req/min) |
+| `AuditLoggingMiddleware` | Logging de acciones críticas con IP real (Cloudflare/Nginx aware) |
+| `RequestSanitizationMiddleware` | Sanitización de inputs contra XSS/SQLi |
+| `AdminIPRestrictionMiddleware` | **Nuevo** — Restringe acceso al panel admin por IP. Retorna 404 (no 403) para no confirmar la existencia de la ruta |
+
+### Protección contra Fuerza Bruta
+
+| Componente | Descripción |
+|------------|-------------|
+| `django-axes` | Bloqueo tras 5 intentos fallidos durante 30 minutos (lockout por user+IP) |
+| `django-simple-captcha` | CAPTCHA matemático después de 3 intentos fallidos |
+| `CustomLoginView` | Vista de login con conteo de intentos, CAPTCHA dinámico y mensajes de intentos restantes |
+| `lockout.html` | Template personalizado que informa del bloqueo temporal |
+
+### Autenticación en APIs del Dashboard
+
+Todas las APIs del dashboard (`MetricsAPIView`, `PeriodsAPIView`, `CompareAPIView`, `DetailsAPIView`, `ClientsAPIView`, `UnitsAPIView`, `ServicesAPIView`) utilizan el mixin `LoginRequiredJSONMixin` que retorna **401 JSON** en lugar de redirigir al login, garantizando que ningún endpoint sea accesible sin sesión autenticada.
+
+### Validación de Inputs
+
+| Función | Descripción |
+|---------|-------------|
+| `validate_pagination()` | Valida y sanitiza `page` y `per_page` (clamping: 1 ≤ page, 1 ≤ per_page ≤ 100) |
+| `validate_period()` | Valida formato `YYYY-MM` con regex `^\d{4}-(0[1-9]\|1[0-2])$` |
+| `validate_sort()` | Valida campos de ordenamiento contra whitelist (`ALLOWED_SORT_FIELDS`) |
+
+### Cookies de Sesión
+
+| Cookie | Configuración | Descripción |
+|--------|---------------|-------------|
+| `__Host-sessionid` | HttpOnly, Secure, SameSite=Lax | Prefijo `__Host-` requiere Secure + path=/ (solo en producción) |
+| `__Host-csrftoken` | Secure, SameSite=Lax | HttpOnly=False porque Django admin necesita leer el CSRF desde JS |
+
+> En desarrollo (DEBUG=True) se usan los nombres estándar `sessionid` y `csrftoken`.
+
+### CSP (Content Security Policy) Diferenciado
+
+**Dashboard (rutas `/dashboard/`):**
+```
+script-src 'self';   ← Sin unsafe-inline ni unsafe-eval
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+```
+
+**Admin (rutas `/{DJANGO_ADMIN_URL}/`):**
+```
+script-src 'self' 'unsafe-inline' 'unsafe-eval';   ← Requerido por Django admin 5.x
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+```
+
+> El CSP relajado del admin solo aplica a rutas protegidas por autenticación staff + `AdminIPRestrictionMiddleware`.
+
+### Panel Admin Protegido
+
+| Control | Descripción |
+|---------|-------------|
+| URL personalizable | Variable `DJANGO_ADMIN_URL` (default: `panel-gestion`) |
+| Restricción por IP | `AdminIPRestrictionMiddleware` con `ADMIN_ALLOWED_IPS` |
+| Respuesta 404 | No confirma la existencia de la ruta ante IPs no autorizadas |
+| Rate limiting en login | El login del admin está incluido en los `AUTH_PATTERNS` del rate limiter |
+| Multi-proxy aware | Soporta Cloudflare (`CF-Connecting-IP`), Nginx (`X-Real-IP`) y `X-Forwarded-For` |
+
+### Detección de IP Real del Cliente
+
+Los middlewares `IPRateLimitMiddleware`, `AuditLoggingMiddleware` y `AdminIPRestrictionMiddleware` detectan la IP real del cliente en el siguiente orden de prioridad:
+
+1. `HTTP_CF_CONNECTING_IP` — Cloudflare (más confiable detrás de CF)
+2. `HTTP_X_REAL_IP` — Nginx Proxy Manager
+3. `HTTP_X_FORWARDED_FOR` — Proxy estándar (puede contener múltiples IPs)
+4. `REMOTE_ADDR` — Conexión directa
+
+### SECRET_KEY Obligatoria
+
+`DJANGO_SECRET_KEY` ya no tiene valor por defecto. Si no está configurada, el servidor se niega a arrancar con un error descriptivo que indica cómo generar una.
 
 ### Validación de Archivos (`api_v1/validators.py`)
 
@@ -419,11 +501,30 @@ Cada acción crítica se registra con:
 - Secrets Manager
 - IAM roles con mínimos privilegios
 
+### Librerías Frontend Locales
+
+Todas las librerías (Bootstrap, ECharts) se sirven localmente via WhiteNoise en lugar de CDNs externos, eliminando la necesidad de `unsafe-eval` (Tailwind JIT) y dominios externos en el CSP.
+
+---
+
+## Variables de Entorno de Seguridad
+
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `DJANGO_SECRET_KEY` | Clave secreta (obligatoria) | — |
+| `DJANGO_DEBUG` | Modo debug | `0` |
+| `DJANGO_ADMIN_URL` | Ruta personalizada del admin | `panel-gestion` |
+| `ADMIN_ALLOWED_IPS` | IPs permitidas para admin (separadas por coma) | `` (vacío = todas) |
+| `SECURE_SSL_REDIRECT` | Redirección HTTP → HTTPS | `true` |
+| `REDIS_PASSWORD` | Contraseña de Redis (formato ACL con user `default`) | — |
+
 ---
 
 ## Documentación Adicional
 
+- [Guía de Security Hardening](SECURITY_HARDENING.md) — Detalle de las 7 observaciones de seguridad y sus correcciones
 - [Checklist de Despliegue Seguro](SECURITY_DEPLOYMENT_CHECKLIST.md)
+- [Guía Feynman/Cornell de Seguridad](SECURITY_FEYNMAN_CORNELL_GUIDE.md)
 - [Reporte de Costos AWS](AWS_COST_REPORT.md)
 - [Manual de Usuario](USER_MANUAL.md)
 

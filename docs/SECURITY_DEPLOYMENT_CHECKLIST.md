@@ -26,38 +26,53 @@ Este documento proporciona una lista de verificación completa para asegurar que
 
 ### 1. Configuración de Django (`settings.py`)
 
-- [ ] `DEBUG = False` en producción
-- [ ] `SECRET_KEY` generado aleatoriamente y almacenado en Secrets Manager
-- [ ] `ALLOWED_HOSTS` configurado con dominios específicos
-- [ ] `SECURE_SSL_REDIRECT = True`
-- [ ] `SESSION_COOKIE_SECURE = True`
-- [ ] `CSRF_COOKIE_SECURE = True`
-- [ ] `SECURE_HSTS_SECONDS = 31536000` (1 año)
-- [ ] `SECURE_HSTS_INCLUDE_SUBDOMAINS = True`
-- [ ] `SECURE_HSTS_PRELOAD = True`
-- [ ] `X_FRAME_OPTIONS = "DENY"`
-- [ ] Content Security Policy configurado
-- [ ] Logging de auditoría habilitado
+- [x] `DEBUG = False` en producción
+- [x] `SECRET_KEY` obligatoria (sin valor por defecto, error descriptivo si falta)
+- [x] `ALLOWED_HOSTS` configurado con dominios específicos
+- [x] `SECURE_SSL_REDIRECT = True`
+- [x] `SESSION_COOKIE_SECURE = True`
+- [x] `CSRF_COOKIE_SECURE = True`
+- [x] `SECURE_HSTS_SECONDS = 31536000` (1 año)
+- [x] `SECURE_HSTS_INCLUDE_SUBDOMAINS = True`
+- [x] `SECURE_HSTS_PRELOAD = True`
+- [x] `X_FRAME_OPTIONS = "DENY"`
+- [x] Content Security Policy configurado (diferenciado admin/dashboard)
+- [x] Logging de auditoría habilitado
+- [x] Prefijo `__Host-` en cookies de sesión y CSRF (producción)
+- [x] `SESSION_COOKIE_AGE = 900` (15 minutos)
+- [x] `SESSION_COOKIE_HTTPONLY = True`
+- [x] `SESSION_COOKIE_SAMESITE = "Lax"`
+- [x] `CSRF_COOKIE_SAMESITE = "Lax"`
+- [x] `Permissions-Policy` configurada (sin camera, microphone, geolocation)
 
 ### 2. Autenticación y Autorización
 
-- [ ] JWT con tiempo de expiración corto (30 min)
-- [ ] Refresh tokens con rotación
-- [ ] Blacklist de tokens revocados habilitado
-- [ ] Contraseñas hasheadas con Argon2
-- [ ] Validación de complejidad de contraseñas (mínimo 10 caracteres)
-- [ ] Rate limiting en endpoint de login (5 intentos/minuto)
-- [ ] Roles y permisos implementados por tenant
+- [x] JWT con tiempo de expiración corto (30 min)
+- [x] Refresh tokens con rotación
+- [x] Blacklist de tokens revocados habilitado
+- [x] Contraseñas hasheadas con Argon2
+- [x] Validación de complejidad de contraseñas (mínimo 10 caracteres)
+- [x] Rate limiting en endpoint de login (5 intentos/minuto, bloqueo 30 min)
+- [x] Roles y permisos implementados por tenant
+- [x] `django-axes` configurado (5 intentos, lockout por user+IP, 30 min cooldown)
+- [x] CAPTCHA matemático después de 3 intentos fallidos (`django-simple-captcha`)
+- [x] Template de lockout personalizado (`lockout.html`)
+- [x] `LoginRequiredJSONMixin` en todas las APIs del dashboard (retorna 401 JSON)
+- [x] `@csrf_exempt` eliminado de todas las vistas
+- [x] Logout solo acepta POST (GET redirige al dashboard)
 
 ### 3. Protección de API
 
-- [ ] Rate limiting global (1000 req/hora por usuario)
-- [ ] Rate limiting por IP para anónimos (100 req/hora)
-- [ ] Validación de Content-Type
-- [ ] Sanitización de inputs
-- [ ] Protección contra CSRF
-- [ ] CORS configurado con orígenes específicos
-- [ ] Headers de seguridad en todas las respuestas
+- [x] Rate limiting por endpoint (auth: 5/min, upload: 20/min, api: 200/min)
+- [x] Rate limiting por IP con bloqueo temporal
+- [x] Validación de Content-Type
+- [x] Sanitización de inputs (XSS/SQLi patterns)
+- [x] Protección contra CSRF
+- [x] CORS configurado con orígenes específicos
+- [x] Headers de seguridad en todas las respuestas
+- [x] Validación de parámetros: `validate_period()`, `validate_pagination()`, `validate_sort()`
+- [x] Whitelist de campos de ordenamiento (`ALLOWED_SORT_FIELDS`)
+- [x] Errores 500 internos ocultan detalles técnicos al cliente
 
 ### 4. Almacenamiento (S3/AWS)
 
@@ -90,13 +105,22 @@ Este documento proporciona una lista de verificación completa para asegurar que
 
 ### 7. Docker/Contenedores
 
-- [ ] Imagen base slim (python:3.11-slim)
-- [ ] Multi-stage build
-- [ ] Usuario no-root (appuser)
-- [ ] No se exponen puertos privilegiados
-- [ ] Healthcheck configurado
-- [ ] Gunicorn en lugar de runserver
-- [ ] Sin credenciales hardcodeadas
+- [x] Imagen base slim (python:3.11-slim)
+- [x] Multi-stage build
+- [x] Usuario no-root (appuser)
+- [x] No se exponen puertos privilegiados
+- [x] Healthcheck configurado
+- [x] Gunicorn en lugar de runserver
+- [x] Sin credenciales hardcodeadas
+
+### 8. Panel Admin
+
+- [x] URL personalizable via `DJANGO_ADMIN_URL` (default: `panel-gestion`)
+- [x] `AdminIPRestrictionMiddleware` restringe acceso por IP
+- [x] Retorna 404 (no 403) para no confirmar existencia de la ruta
+- [x] `ADMIN_ALLOWED_IPS` configurable por variable de entorno
+- [x] CSP diferenciado (más permisivo solo en rutas admin)
+- [x] Detección multi-proxy de IP (Cloudflare, Nginx, X-Forwarded-For)
 
 ### 8. Validación de Archivos
 
@@ -248,4 +272,4 @@ Para reportar vulnerabilidades o incidentes de seguridad:
 
 ---
 
-*Última actualización: Enero 2026*
+*Última actualización: 13 de febrero de 2026*
