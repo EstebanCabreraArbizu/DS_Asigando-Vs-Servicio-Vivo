@@ -13,6 +13,17 @@ let sortOrder = 'desc';
 let metricsData = null;
 let chartsInstances = {};
 
+// ===== SAFE ECHARTS INIT =====
+function safeChartInit(domId) {
+    const element = document.getElementById(domId);
+    if (!element) return null;
+    const existing = echarts.getInstanceByDom(element);
+    if (existing) {
+        existing.dispose();
+    }
+    return echarts.init(element);
+}
+
 // Estado de paginación para tablas
 let clientPage = 1;
 let unitPage = 1;
@@ -286,7 +297,7 @@ function renderAllCharts(data) {
     const kpis = data.kpis;
 
     // Gráfico Estado (Bar)
-    chartsInstances.estado = echarts.init(document.getElementById('chart-estado'));
+    chartsInstances.estado = safeChartInit('chart-estado');
     if (charts.by_estado?.length > 0) {
         chartsInstances.estado.setOption({
             tooltip: {
@@ -335,7 +346,7 @@ function renderAllCharts(data) {
     }
 
     // Gráfico Clientes (Horizontal Bar)
-    chartsInstances.clientes = echarts.init(document.getElementById('chart-clientes'));
+    chartsInstances.clientes = safeChartInit('chart-clientes');
     if (charts.by_cliente_top10?.length > 0) {
         chartsInstances.clientes.setOption({
             tooltip: {
@@ -384,7 +395,7 @@ function renderAllCharts(data) {
     }
 
     // Gráfico Zona (Bar)
-    chartsInstances.zona = echarts.init(document.getElementById('chart-zona'));
+    chartsInstances.zona = safeChartInit('chart-zona');
     if (charts.by_zona?.length > 0) {
         chartsInstances.zona.setOption({
             tooltip: {
@@ -441,7 +452,7 @@ function renderAllCharts(data) {
     }
 
     // Gráfico MacroZona (Pie)
-    chartsInstances.macrozona = echarts.init(document.getElementById('chart-macrozona'));
+    chartsInstances.macrozona = safeChartInit('chart-macrozona');
     if (charts.by_macrozona?.length > 0) {
         chartsInstances.macrozona.setOption({
             tooltip: {
@@ -473,7 +484,7 @@ function renderAllCharts(data) {
     }
 
     // Gráfico Donut PA vs SV
-    chartsInstances.donut = echarts.init(document.getElementById('chart-donut'));
+    chartsInstances.donut = safeChartInit('chart-donut');
     chartsInstances.donut.setOption({
         tooltip: {
             trigger: 'item',
@@ -495,7 +506,7 @@ function renderAllCharts(data) {
     });
 
     // Gráfico Grupo
-    chartsInstances.grupo = echarts.init(document.getElementById('chart-grupo'));
+    chartsInstances.grupo = safeChartInit('chart-grupo');
     if (charts.by_grupo?.length > 0) {
         const grupoKey = Object.keys(charts.by_grupo[0]).find(k => k.includes('Grupo'));
         chartsInstances.grupo.setOption({
@@ -547,7 +558,7 @@ function renderAllCharts(data) {
     }
 
     // Gráfico Unidades Bar
-    chartsInstances.unidadesBar = echarts.init(document.getElementById('chart-unidades-bar'));
+    chartsInstances.unidadesBar = safeChartInit('chart-unidades-bar');
     if (charts.by_unidad_top10?.length > 0) {
         chartsInstances.unidadesBar.setOption({
             tooltip: {
@@ -595,9 +606,35 @@ function renderAllCharts(data) {
         });
     }
 
-    // Responsive
-    window.addEventListener('resize', () => {
-        Object.values(chartsInstances).forEach(chart => chart && chart.resize());
+    // Post-render resize para corregir dimensiones en primera carga
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            Object.values(chartsInstances).forEach(chart => chart && chart.resize());
+        }, 250);
+    });
+}
+
+// ===== RESPONSIVE GLOBAL (registrar una sola vez) =====
+window.addEventListener('resize', () => {
+    Object.values(chartsInstances).forEach(chart => chart && chart.resize());
+});
+
+if (typeof ResizeObserver !== 'undefined') {
+    const chartResizeObserver = new ResizeObserver(entries => {
+        entries.forEach(entry => {
+            if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+                const chart = echarts.getInstanceByDom(entry.target);
+                if (chart) {
+                    chart.resize();
+                }
+            }
+        });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.chart-container, [id^="chart-"]').forEach(element => {
+            chartResizeObserver.observe(element);
+        });
     });
 }
 

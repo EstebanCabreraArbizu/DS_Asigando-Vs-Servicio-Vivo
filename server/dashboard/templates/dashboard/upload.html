@@ -38,14 +38,14 @@
                         <p class="text-xs text-gray-500">{{ permissions.role_display }}</p>
                     </div>
                     <a href="{% url 'dashboard:main' %}"
-                        class="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition">
-                        Ver Dashboard
+                        class="btn btn-sm btn-dashboard">
+                        📊 <span class="btn-label">Ver Dashboard</span>
                     </a>
                     <form id="logout-form" action="{% url 'dashboard:logout' %}" method="post" class="hidden">
                         {% csrf_token %}
                     </form>
                     <a href="#" id="logout-btn"
-                        class="bg-red-100 text-red-600 px-4 py-2 rounded-lg font-medium hover:bg-red-200 transition">
+                        class="btn btn-sm btn-danger">
                         Salir
                     </a>
                 </div>
@@ -137,7 +137,7 @@
             <!-- Submit Button -->
             <div class="flex items-center gap-4">
                 <button id="submit-btn" disabled
-                    class="bg-blue-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                    class="btn btn-lg btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
                     <svg id="submit-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
@@ -175,15 +175,15 @@
                     </div>
                     <div class="mt-4 flex gap-3">
                         <a id="download-link" href="#"
-                            class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition inline-flex items-center gap-2">
+                            class="btn btn-success">
                             Descargar Excel
                         </a>
                         <a href="{% url 'dashboard:main' %}"
-                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2">
+                            class="btn btn-dashboard">
                             Ver en Dashboard
                         </a>
                         <button id="reset-form-btn"
-                            class="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition">
+                            class="btn btn-outline">
                             Nuevo Análisis
                         </button>
                     </div>
@@ -200,7 +200,7 @@
                         </div>
                     </div>
                     <button id="reset-form-btn-2"
-                        class="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
+                        class="btn btn-primary mt-4">
                         Intentar de nuevo
                     </button>
                 </div>
@@ -229,7 +229,7 @@
             <div class="flex items-center justify-between mb-6">
                 <h2 class="hud-title text-xl">Historial de Análisis</h2>
                 <button id="refresh-jobs-btn"
-                    class="text-blue-600 hover:underline text-sm flex items-center gap-1">
+                    class="btn btn-sm btn-ghost">
                     Actualizar
                 </button>
             </div>
@@ -325,9 +325,9 @@
             </p>
             <div class="flex gap-3 justify-end">
                 <button id="cancel-delete-btn"
-                    class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+                    class="btn btn-outline">Cancelar</button>
                 <button id="confirm-delete-btn"
-                    class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Eliminar</button>
+                    class="btn btn-danger-solid">Eliminar</button>
             </div>
         </div>
     </div>

@@ -456,7 +456,7 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
         """Genera métricas desde el parquet de un job."""
         import polars as pl
         from jobs.models import Artifact, ArtifactKind
-        from jobs.utils import get_unique_values, generate_analysis_metrics
+        from jobs.utils import generate_analysis_metrics
         
         filters = filters or {}
         
@@ -541,7 +541,7 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
                 
                 # Obtener valores únicos para este filtro
                 # (usando las columnas definidas en filter_configs)
-                filtros_disponibles[key] = get_unique_values(df_temp, *columns)
+                filtros_disponibles[key] = self._get_unique_values(df_temp, *columns)
 
             # --- Fin lógica de filtros independientes ---
 

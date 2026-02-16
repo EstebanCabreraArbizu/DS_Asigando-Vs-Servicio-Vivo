@@ -33,28 +33,28 @@
                         </select>
                     </div>
                     <button id="compare-btn"
-                        class="bg-white/20 text-white px-3 py-1.5 rounded text-sm hover:bg-white/30 transition">
-                        📊 Comparar
+                        class="btn btn-sm btn-compare">
+                        📊 <span class="btn-label">Comparar</span>
                     </button>
                     <a href="{% url 'dashboard:upload' %}"
-                        class="bg-green-500 text-white px-3 py-1.5 rounded text-sm hover:bg-green-600 transition">
-                        📤 Subir
+                        class="btn btn-sm btn-upload">
+                        📤 <span class="btn-label">Subir</span>
                     </a>
                     <a href="{% url 'dashboard:jobs:job_latest_download' %}?tenant=default"
-                        class="bg-orange-500 text-white px-3 py-1.5 rounded text-sm hover:bg-orange-600 transition">
-                        📥 Excel
+                        class="btn btn-sm btn-export">
+                        📥 <span class="btn-label">Excel</span>
                     </a>
-                    <div class="h-8 w-px bg-blue-500/50 mx-1"></div>
+                    <div class="header-divider"></div>
                     <div class="flex items-center gap-3">
                         <div class="text-right text-xs hidden sm:block">
-                            <p class="font-medium text-blue-50">{{ user.username }}</p>
-                            <p class="text-blue-200">{{ permissions.role_display }}</p>
+                            <p class="font-medium text-gray-700">{{ user.username }}</p>
+                            <p class="text-gray-500">{{ permissions.role_display }}</p>
                         </div>
                         <form id="logout-form" action="{% url 'dashboard:logout' %}" method="post" class="hidden">
                             {% csrf_token %}
                         </form>
                         <a href="#" id="logout-btn"
-                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm transition">
+                            class="btn btn-sm btn-danger">
                             Salir
                         </a>
                     </div>
@@ -87,7 +87,7 @@
                 <select id="filter-gerente" class="filter-select text-sm border rounded px-2 py-1">
                     <option value="">Gerente - Todos</option>
                 </select>
-                <button id="clear-filters" class="text-sm text-blue-600 hover:text-blue-800 ml-2">
+                <button id="clear-filters" class="btn btn-sm btn-ghost ml-2">
                     🔄 Limpiar
                 </button>
             </div>
@@ -99,32 +99,32 @@
         <div class="container mx-auto px-4">
             <nav class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1">
                 <button
-                    class="tab-btn tab-active px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center border-b-3 hover:text-blue-600"
+                    class="tab-btn tab-active"
                     data-tab="resumen">
                     📈 Resumen
                 </button>
                 <button
-                    class="tab-btn px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-600 hover:text-blue-600"
+                    class="tab-btn"
                     data-tab="clientes">
                     👥 Por Cliente
                 </button>
                 <button
-                    class="tab-btn px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-600 hover:text-blue-600"
+                    class="tab-btn"
                     data-tab="unidades">
                     🏢 Por Unidad
                 </button>
                 <button
-                    class="tab-btn px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-600 hover:text-blue-600"
+                    class="tab-btn"
                     data-tab="servicios">
                     🔧 Por Servicio
                 </button>
                 <button
-                    class="tab-btn px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-600 hover:text-blue-600"
+                    class="tab-btn"
                     data-tab="graficos">
                     📊 Gráficos
                 </button>
                 <button
-                    class="tab-btn px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-600 hover:text-blue-600"
+                    class="tab-btn"
                     data-tab="detalle">
                     📋 Detalle
                 </button>

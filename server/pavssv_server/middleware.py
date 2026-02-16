@@ -168,6 +168,7 @@ class IPRateLimitMiddleware(MiddlewareMixin):
     RATE_LIMITS = {
         "auth": {"requests": 5, "window": 60, "block_time": 1800},     # 5 req/min, bloqueo 30 min
         "upload": {"requests": 20, "window": 60, "block_time": 180},   # 20 req/min, bloqueo 3 min
+        "dashboard": {"requests": 600, "window": 60, "block_time": 30}, # 600 req/min, bloqueo 30s
         "api": {"requests": 200, "window": 60, "block_time": 60},      # 200 req/min, bloqueo 1 min
     }
     
@@ -178,20 +179,25 @@ class IPRateLimitMiddleware(MiddlewareMixin):
         "/dashboard/login/",
     ]
     UPLOAD_PATTERNS = ["/api/v1/jobs/", "/api/v1/upload/", "/dashboard/upload/"]
+    DASHBOARD_PATTERNS = ["/dashboard/"]
+    STATIC_PATTERNS = ["/static/", "/favicon.ico"]
     
     # IPs que omiten rate limiting (configurables por env var)
     WHITELIST_IPS = set()
+    _whitelist_loaded = False
     
     @classmethod
     def _load_whitelist(cls):
         """Carga la whitelist de IPs desde variable de entorno."""
         import os
         whitelist_str = os.getenv("RATE_LIMIT_WHITELIST_IPS", "")
+        cls.WHITELIST_IPS = set()
         if whitelist_str:
             cls.WHITELIST_IPS = {ip.strip() for ip in whitelist_str.split(",") if ip.strip()}
         # Siempre permitir localhost en desarrollo
         if os.getenv("DJANGO_DEBUG", "0") == "1":
             cls.WHITELIST_IPS.update(["127.0.0.1", "localhost", "::1"])
+        cls._whitelist_loaded = True
     
     def process_request(self, request: HttpRequest) -> HttpResponse | None:
         import os
@@ -199,9 +205,13 @@ class IPRateLimitMiddleware(MiddlewareMixin):
         # Deshabilitar rate limiting si está configurado (solo desarrollo)
         if os.getenv("RATE_LIMIT_DISABLED", "0") == "1":
             return None
+
+        # Omitir archivos estáticos y favicon
+        if any(request.path.startswith(path) for path in self.STATIC_PATTERNS):
+            return None
         
         # Cargar whitelist si no está cargada
-        if not self.WHITELIST_IPS:
+        if not self._whitelist_loaded:
             self._load_whitelist()
         
         # Obtener IP del cliente (considerando proxies)
@@ -273,6 +283,8 @@ class IPRateLimitMiddleware(MiddlewareMixin):
             return "auth"
         if any(path.startswith(p) for p in self.UPLOAD_PATTERNS):
             return "upload"
+        if any(path.startswith(p) for p in self.DASHBOARD_PATTERNS):
+            return "dashboard"
         return "api"
     
     def _check_rate_limit(self, client_ip: str, endpoint_type: str) -> bool:
