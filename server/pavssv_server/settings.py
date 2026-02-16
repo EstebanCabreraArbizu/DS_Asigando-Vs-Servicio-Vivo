@@ -425,6 +425,7 @@ CSRF_TRUSTED_ORIGINS = [
 CSP_DEFAULT_SRC = ("'self'",)
 CSP_SCRIPT_SRC = (
     "'self'",
+    "https://static.cloudflareinsights.com",
 )
 CSP_STYLE_SRC = (
     "'self'",
@@ -433,7 +434,10 @@ CSP_STYLE_SRC = (
 )
 CSP_IMG_SRC = ("'self'", "data:", "https:")
 CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com")
-CSP_CONNECT_SRC = ("'self'",)
+CSP_CONNECT_SRC = (
+    "'self'",
+    "https://cloudflareinsights.com",
+)
 CSP_FRAME_ANCESTORS = ("'none'",)
 CSP_FORM_ACTION = ("'self'",)
 CSP_BASE_URI = ("'self'",)

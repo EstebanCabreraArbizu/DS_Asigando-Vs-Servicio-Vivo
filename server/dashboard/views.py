@@ -456,6 +456,7 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
         """Genera métricas desde el parquet de un job."""
         import polars as pl
         from jobs.models import Artifact, ArtifactKind
+        from jobs.utils import get_unique_values, generate_analysis_metrics
         
         filters = filters or {}
         
@@ -466,9 +467,87 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
         try:
             # Leer desde buffer para compatibilidad con S3
             file_buffer = read_file_to_buffer(artifact.file)
-            df = pl.read_parquet(file_buffer)
+            df_original = pl.read_parquet(file_buffer)
             
-            # Aplicar filtros
+            # --- Lógica de filtros independientes ---
+            # Para cada filtro, queremos ver todas las opciones posibles dado el RESTO de filtros,
+            # pero IGNORANDO la selección del filtro actual.
+            # Esto permite cambiar de opción sin tener que "deseleccionar" primero.
+            
+            filter_configs = {
+                "macrozona": ["Macrozona_SV"],
+                "zona": ["Zona_SV", "Zona_PA"],
+                "compania": ["Compañía_SV", "Compañía_PA"],
+                "grupo": ["Nombre_Grupo_SV", "Nombre_Grupo_PA"],
+                "sector": ["Sector_SV", "Sector_PA"],
+                "gerente": ["Gerencia_SV", "Gerencia_PA"],
+            }
+            
+            filtros_disponibles = {}
+            
+            for key, columns in filter_configs.items():
+                # Empezamos con el dataset original para cada cálculo de opciones
+                df_temp = df_original
+                
+                # Aplicamos TODOS los filtros EXCEPTO el filtro actual (key)
+                # Ejemplo: Si calculamos opciones para 'zona', aplicamos filtros de macrozona, compania, etc.
+                # pero NO aplicamos el filtro de 'zona' que pueda venir en la request.
+                
+                current_temp_filters = {k: v for k, v in filters.items() if k != key and v}
+                
+                # Aplicar los filtros restantes a df_temp
+                if current_temp_filters.get("macrozona"):
+                    df_temp = df_temp.filter(pl.col("Macrozona_SV") == current_temp_filters["macrozona"])
+                
+                if current_temp_filters.get("zona"):
+                    zona_filter = pl.lit(False)
+                    if "Zona_SV" in df_temp.columns:
+                        zona_filter = zona_filter | (pl.col("Zona_SV") == current_temp_filters["zona"])
+                    if "Zona_PA" in df_temp.columns:
+                        zona_filter = zona_filter | (pl.col("Zona_PA") == current_temp_filters["zona"])
+                    df_temp = df_temp.filter(zona_filter)
+                
+                if current_temp_filters.get("compania"):
+                    compania_filter = pl.lit(False)
+                    if "Compañía_SV" in df_temp.columns:
+                        compania_filter = compania_filter | (pl.col("Compañía_SV") == current_temp_filters["compania"])
+                    if "Compañía_PA" in df_temp.columns:
+                        compania_filter = compania_filter | (pl.col("Compañía_PA") == current_temp_filters["compania"])
+                    df_temp = df_temp.filter(compania_filter)
+                
+                if current_temp_filters.get("grupo"):
+                    grupo_filter = pl.lit(False)
+                    if "Nombre_Grupo_SV" in df_temp.columns:
+                        grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_SV") == current_temp_filters["grupo"])
+                    if "Nombre_Grupo_PA" in df_temp.columns:
+                        grupo_filter = grupo_filter | (pl.col("Nombre_Grupo_PA") == current_temp_filters["grupo"])
+                    df_temp = df_temp.filter(grupo_filter)
+                
+                if current_temp_filters.get("sector"):
+                    sector_filter = pl.lit(False)
+                    if "Sector_SV" in df_temp.columns:
+                        sector_filter = sector_filter | (pl.col("Sector_SV") == current_temp_filters["sector"])
+                    if "Sector_PA" in df_temp.columns:
+                        sector_filter = sector_filter | (pl.col("Sector_PA") == current_temp_filters["sector"])
+                    df_temp = df_temp.filter(sector_filter)
+                
+                if current_temp_filters.get("gerente"):
+                    gerente_filter = pl.lit(False)
+                    if "Gerencia_SV" in df_temp.columns:
+                        gerente_filter = gerente_filter | (pl.col("Gerencia_SV") == current_temp_filters["gerente"])
+                    if "Gerencia_PA" in df_temp.columns:
+                        gerente_filter = gerente_filter | (pl.col("Gerencia_PA") == current_temp_filters["gerente"])
+                    df_temp = df_temp.filter(gerente_filter)
+                
+                # Obtener valores únicos para este filtro
+                # (usando las columnas definidas en filter_configs)
+                filtros_disponibles[key] = get_unique_values(df_temp, *columns)
+
+            # --- Fin lógica de filtros independientes ---
+
+            # Ahora aplicamos TODOS los filtros para los datos de los gráficos/KPIs
+            df = df_original
+            
             if filters.get("macrozona"):
                 df = df.filter(pl.col("Macrozona_SV") == filters["macrozona"])
             
@@ -530,11 +609,16 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
                     "by_unidad_top10": [],
                     "by_servicio_top10": [],
                     "by_grupo": [],
-                    "filtros_disponibles": {},
+                    "filtros_disponibles": filtros_disponibles, # Usamos los calculados independientemente
                 }
             
             # Usar utilidad compartida para generar métricas
-            return generate_analysis_metrics(df)
+            metrics = generate_analysis_metrics(df)
+            
+            # Sobrescribir filtros_disponibles con nuestra versión "inteligente"
+            metrics["filtros_disponibles"] = filtros_disponibles
+            
+            return metrics
         except Exception as e:
             print(f"Error generando métricas: {e}")
             import traceback

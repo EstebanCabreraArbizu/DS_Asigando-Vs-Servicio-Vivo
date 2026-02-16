@@ -228,6 +228,29 @@ header a.bg-orange-500 {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+/* Fix for Upload/Excel buttons being washed out by theme conflicts */
+header a.bg-green-500 {
+    background-color: #22C55E !important; /* Green-500 */
+    color: #ffffff !important;
+    border: 1px solid #16A34A !important;
+    opacity: 1 !important;
+}
+
+header a.bg-green-500:hover {
+    background-color: #16A34A !important; /* Green-600 */
+}
+
+header a.bg-orange-500 {
+    background-color: #F97316 !important; /* Orange-500 */
+    color: #ffffff !important;
+    border: 1px solid #EA580C !important;
+    opacity: 1 !important;
+}
+
+header a.bg-orange-500:hover {
+    background-color: #EA580C !important; /* Orange-600 */
+}
+
 /* Glass Container for Charts */
 .chart-container,
 .bg-white.rounded-lg {
