@@ -44,7 +44,7 @@
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 🧠 EXPLICACIÓN FEYNMAN (Como si tuvieras 12 años)
+### 🧠 EXPLICACIÓN FEYNMAN (Como si fueras programador junior)
 
 **Imagina que tu página web es una fiesta de cumpleaños.**
 
@@ -102,12 +102,14 @@ CSP_FRAME_ANCESTORS = ("'none'",)    # Nadie puede "enmarcar" tu web
 │ ¿Cuáles son los    │ TRES NIVELES DE PROTECCIÓN:                             │
 │ límites?           │                                                         │
 │                    │ 1. LOGIN: 5 intentos por minuto                         │
-│                    │    - Si fallas 5 veces → bloqueado 5 minutos            │
+│                    │    - Si fallas 5 veces → bloqueado 30 minutos            │
+│                    │    - django-axes: lockout por user+IP                    │
+│                    │    - CAPTCHA matemático después de 3 intentos             │
 │                    │                                                         │
-│                    │ 2. UPLOAD: 10 archivos por minuto                       │
+│                    │ 2. UPLOAD: 20 archivos por minuto                       │
 │                    │    - Previene spam de archivos                          │
 │                    │                                                         │
-│                    │ 3. API GENERAL: 100 requests por minuto                 │
+│                    │ 3. API GENERAL: 200 requests por minuto                 │
 │                    │    - Uso normal permitido, abuso bloqueado              │
 │                    │                                                         │
 │ ¿Qué pasa si       │ HTTP 429: "Too Many Requests"                           │
@@ -145,7 +147,8 @@ Guardia: "Incorrecto. Intento 2 de 5."
 
 Robot: "Contraseña: qwerty"
 Guardia: "¡BLOQUEADO! Has gastado tus 5 intentos."
-        "Vuelve en 5 minutos. 🚫"
+        "Vuelve en 30 minutos. 🚫"
+        "Además, ahora necesitas resolver un CAPTCHA matemático 🧩"
 
 Robot: 😡 (tendría que esperar AÑOS para probar todas las contraseñas)
 ```
@@ -160,19 +163,27 @@ class IPRateLimitMiddleware:
         "auth": {
             "requests": 5,      # Solo 5 intentos
             "window": 60,       # Por minuto (60 segundos)
-            "block_time": 300   # Si excede, bloqueado 5 minutos
+            "block_time": 1800  # Si excede, bloqueado 30 minutos
         },
         "upload": {
-            "requests": 10,
+            "requests": 20,
             "window": 60,
             "block_time": 180   # Bloqueado 3 minutos
         },
         "api": {
-            "requests": 100,
+            "requests": 200,
             "window": 60,
             "block_time": 60    # Bloqueado 1 minuto
         }
     }
+
+    # Endpoints de autenticación protegidos (incluye dashboard y admin)
+    AUTH_PATTERNS = [
+        "/api/v1/auth/login/",
+        "/api/v1/auth/refresh/",
+        "/dashboard/login/",
+        # + login dinámico del admin según DJANGO_ADMIN_URL
+    ]
 ```
 
 ---
@@ -439,8 +450,10 @@ def get_secret(secret_name: str, default = None):
     manager = get_secrets_manager()
     return manager.get_secret(secret_name, default)
 
-# Uso en settings.py
-SECRET_KEY = get_secret("DJANGO_SECRET_KEY", "fallback-para-desarrollo")
+# Uso en settings.py — SECRET_KEY ahora es OBLIGATORIA (sin valor por defecto)
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("DJANGO_SECRET_KEY no está configurada.")
 ```
 
 ---
@@ -593,8 +606,11 @@ Si mañana desaparece algo, puedes revisar los logs y saber exactamente qué pas
 │  │  │ Sanitization│→│ Rate Limit  │→│ Security Headers│ │   │
 │  │  └─────────────┘ └─────────────┘ └─────────────────┘ │   │
 │  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────┐ │   │
-│  │  │ Audit Log   │→│ Auth Check  │→│ CSRF Protection │ │   │
+│  │  │  Admin IP  │→│ Axes+CAPTCHA│→│ CSRF Protection │ │   │
 │  │  └─────────────┘ └─────────────┘ └─────────────────┘ │   │
+│  │  ┌─────────────┐ ┌─────────────────────────────┐ │   │
+│  │  │ Audit Log   │→│ Auth Check (LoginReqJSONMixin)│ │   │
+│  │  └─────────────┘ └─────────────────────────────┘ │   │
 │  └──────────────────────────────────────────────────────┘   │
 │                              │                               │
 │  ┌──────────────────────────────────────────────────────┐   │
@@ -618,6 +634,119 @@ Si mañana desaparece algo, puedes revisar los logs y saber exactamente qué pas
 
 ---
 
+# 🎯 TEMA 8: Protección del Panel Admin y Anti Brute Force
+
+## 📝 NOTAS CORNELL
+
+```
+┌────────────────────┬─────────────────────────────────────────────────────────┐
+│  PREGUNTAS CLAVE   │                    NOTAS PRINCIPALES                    │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│                    │                                                         │
+│ ¿Por qué ocultar   │ /admin/ es una ruta PREDECIBLE que los bots y           │
+│ el admin?          │ atacantes buscan automáticamente. Si la encuentran:     │
+│                    │ - Intentan fuerza bruta en el login                     │
+│                    │ - Buscan vulnerabilidades en el panel                   │
+│                    │ - Enumeran usuarios                                     │
+│                    │                                                         │
+│ ¿Qué capas de      │ 5 CAPAS DE PROTECCIÓN:                                  │
+│ protección hay?    │                                                         │
+│                    │ 1. URL personalizable (DJANGO_ADMIN_URL)               │
+│                    │    → No es /admin/ sino /{nombre-secreto}/              │
+│                    │                                                         │
+│                    │ 2. AdminIPRestrictionMiddleware                         │
+│                    │    → Solo IPs en ADMIN_ALLOWED_IPS pueden acceder       │
+│                    │    → Retorna 404 (no 403) - no confirma existencia      │
+│                    │                                                         │
+│                    │ 3. django-axes: lockout tras 5 intentos (30 min)        │
+│                    │    → Bloquea por combinación user+IP                    │
+│                    │                                                         │
+│                    │ 4. CAPTCHA matemático después de 3 intentos              │
+│                    │    → Dificulta ataques automatizados                    │
+│                    │                                                         │
+│                    │ 5. Rate limiting en login del admin                      │
+│                    │    → 5 req/min, bloqueo 30 minutos                      │
+│                    │                                                         │
+│ ¿Por qué 404 y     │ Si responder 403 ("Prohibido"), el atacante SABE que    │
+│ no 403?            │ la ruta existe pero no tiene acceso.                    │
+│                    │ Con 404 ("No encontrado"), el atacante piensa que       │
+│                    │ la ruta NO EXISTE y se va a buscar otra.                │
+│                    │                                                         │
+│ ¿Qué es CAPTCHA    │ En lugar de letras difíciles de leer, usamos            │
+│ matemático?        │ problemas como "3 + 7 = ?"                              │
+│                    │ Más accesible para personas, difícil para bots.         │
+│                    │                                                         │
+├────────────────────┴─────────────────────────────────────────────────────────┤
+│ 📌 RESUMEN:                                                                  │
+│                                                                              │
+│ El panel admin tiene 5 capas de protección, como un búnker militar:          │
+│ URL secreta (puerta oculta), restricción IP (solo personas autorizadas),     │
+│ lockout (cierre automático), CAPTCHA (prueba de humanidad), y rate           │
+│ limiting (límite de velocidad). Si un atacante supera una capa, las         │
+│ otras lo detienen.                                                           │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 🧠 EXPLICACIÓN FEYNMAN
+
+**Imagina que tienes una caja fuerte secreta en tu casa.**
+
+**Sin protección:** La caja fuerte está en la sala, visible para todos, y solo tiene una cerradura.
+
+**Con protección (lo que hacemos):**
+
+```
+Capa 1: PUERTA OCULTA
+        La caja fuerte está detrás de un cuadro secreto.
+        → URL personalizada (no /admin/, sino /panel-gestion/)
+
+Capa 2: GUARDIAS EN LA PUERTA
+        Solo personas con credencial (IP autorizada) pueden pasar.
+        → Si no tienes credencial: "¿Qué puerta? Aquí no hay nada." (404)
+
+Capa 3: CERRADURA CON LÍMITE DE INTENTOS
+        Después de 5 intentos fallidos, la caja se bloquea 30 minutos.
+        → django-axes bloquea por user+IP
+
+Capa 4: PRUEBA DE HUMANIDAD
+        Después de 3 intentos: "¿Cuánto es 5 + 8? 🧩"
+        → CAPTCHA matemático que los robots no pueden resolver
+
+Capa 5: ALARMA SILENCIOSA
+        Cada intento queda registrado con IP, hora y resultado.
+        → Audit logging + django-axes failure log
+```
+
+### 📍 Ubicación en el código:
+
+```python
+# Archivo: server/pavssv_server/middleware.py
+
+class AdminIPRestrictionMiddleware(MiddlewareMixin):
+    """Solo permite acceso desde IPs en ADMIN_ALLOWED_IPS."""
+    
+    def process_request(self, request):
+        if not request.path.startswith(self._admin_prefix):
+            return None  # No es ruta admin, dejar pasar
+        
+        if not self._allowed_ips:
+            return None  # Sin restricción en desarrollo
+        
+        client_ips = self._get_all_client_ips(request)
+        if any(ip in self._allowed_ips for ip in client_ips):
+            return None  # IP autorizada
+        
+        raise Http404()  # 404, NO 403
+
+# Archivo: server/pavssv_server/settings.py
+
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = timedelta(minutes=30)
+CAPTCHA_CHALLENGE_FUNCT = "captcha.helpers.math_challenge"
+```
+
+---
+
 # 🧪 CONFIGURACIÓN DE TESTS DE SEGURIDAD
 
 ## Tests a Ejecutar por Función
@@ -633,4 +762,5 @@ Si mañana desaparece algo, puedes revisar los logs y saber exactamente qué pas
 ---
 
 *Documento creado usando metodología Feynman + Notas Cornell*
-*Fecha: Enero 2026*
+*Fecha: Febrero 2026*
+*Última actualización: 13 de febrero de 2026 — AdminIPRestrictionMiddleware, django-axes, CAPTCHA, __Host- cookies*

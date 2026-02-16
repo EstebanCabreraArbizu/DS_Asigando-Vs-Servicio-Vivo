@@ -55,28 +55,28 @@ Este informe detalla las opciones y pasos necesarios para desplegar el sistema *
 
 ```mermaid
 flowchart TB
-    subgraph AWS["☁️ AWS Cloud"]
+    subgraph AWS["AWS Cloud"]
         
-        subgraph Public["Capa Pública"]
-            R53["🌐 Route 53<br/>pavssv.liderman.com"]
-            ALB["⚖️ ALB<br/>SSL/TLS"]
-            WAF["🛡️ WAF + Shield"]
+        subgraph Public["Capa Publica"]
+            R53["Route 53\npavssv.liderman.com"]
+            ALB["ALB\nSSL/TLS"]
+            WAF["WAF + Shield"]
         end
         
-        subgraph ECS["📦 ECS Cluster - Fargate"]
-            WEB["🌐 Web Task<br/>Django"]
-            WORKER["⚙️ Worker Task<br/>Celery"]
+        subgraph ECS["ECS Cluster - Fargate"]
+            WEB["Web Task\nDjango"]
+            WORKER["Worker Task\nCelery"]
         end
         
-        subgraph VPC["🔒 VPC Privada"]
-            RDS["🐘 RDS<br/>PostgreSQL"]
-            REDIS["⚡ ElastiCache<br/>Redis"]
-            S3["📂 S3<br/>Buckets"]
+        subgraph VPC["VPC Privada"]
+            RDS["RDS\nPostgreSQL"]
+            REDIS["ElastiCache\nRedis"]
+            S3["S3\nBuckets"]
         end
         
     end
     
-    USER["👤 Usuario"] --> R53
+    USER["Usuario"] --> R53
     R53 --> ALB
     ALB --> WAF
     ALB --> WEB
