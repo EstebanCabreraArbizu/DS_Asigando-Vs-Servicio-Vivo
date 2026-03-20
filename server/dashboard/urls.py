@@ -27,7 +27,11 @@ urlpatterns = [
     path("api/clients/", views.ClientsAPIView.as_view(), name="api_clients"),
     path("api/units/", views.UnitsAPIView.as_view(), name="api_units"),
     path("api/services/", views.ServicesAPIView.as_view(), name="api_services"),
+
+    # ► Análisis desde ServicioGeneral API (sin subir Excel)
+    path("api/analyze-from-api/", views.AnalyzeFromAPIView.as_view(), name="api_analyze_from_api"),
     
     # API endpoints del core (Jobs, etc) montados bajo dashboard
     path("api/v1/", include("api_v1.urls")),
 ]
+

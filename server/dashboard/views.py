@@ -1541,3 +1541,202 @@ class CustomLogoutView(LoginRequiredMixin, View):
     def get(self, request):
         """GET no permitido para logout - redirigir al dashboard."""
         return redirect('dashboard:main')
+
+
+class AnalyzeFromAPIView(LoginRequiredJSONMixin, View):
+    """
+    Vista que lanza un análisis PA vs SV obteniendo los datos directamente
+    de la API REST ServicioGeneral, sin necesidad de subir archivos Excel.
+
+    POST /api/analyze-from-api/
+    Body JSON:
+        {
+            "secuencia_periodo": "17",          # ID del periodo de nómina (requerido)
+            "servicio_tareo": "1",              # Tipo de servicio (default: "1")
+            "period_month": "2025-11"           # Formato YYYY-MM para el AnalysisJob (requerido)
+        }
+
+    Flujo:
+        1. Valida parámetros de entrada.
+        2. Crea un AnalysisJob con status=RUNNING.
+        3. Llama a DataLoader.load_empresa_completa() → (df_pa, df_sv) vía API.
+        4. Ejecuta el análisis (AnalysisEngine).
+        5. Guarda el resultado como Artifact PARQUET + XLSX.
+        6. Actualiza el Job a SUCCEEDED.
+
+    Nota: Para periodos largos (mucha data) se recomienda mover esto a una
+    tarea Celery. La implementación actual es síncrona (adecuada para pruebas locales).
+    """
+
+    def post(self, request):
+        import json
+        import sys
+        import os
+        from datetime import datetime
+
+        # --- Cargar módulos del core desde la ruta del proyecto ---
+        core_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "core")
+        if core_path not in sys.path:
+            sys.path.insert(0, core_path)
+
+        try:
+            body = json.loads(request.body)
+        except (json.JSONDecodeError, Exception):
+            return JsonResponse(
+                {"error": {"code": "invalid_json", "message": "Body debe ser JSON válido"}},
+                status=400
+            )
+
+        secuencia_periodo = str(body.get("secuencia_periodo", "")).strip()
+        servicio_tareo = str(body.get("servicio_tareo", "1")).strip() or "1"
+        period_month_str = str(body.get("period_month", "")).strip()
+
+        # Validar campos requeridos
+        if not secuencia_periodo:
+            return JsonResponse(
+                {"error": {"code": "missing_param", "message": "secuencia_periodo es requerido"}},
+                status=400
+            )
+        if not period_month_str:
+            return JsonResponse(
+                {"error": {"code": "missing_param", "message": "period_month es requerido (YYYY-MM)"}},
+                status=400
+            )
+
+        # Validar formato de period_month
+        period_date, period_err = validate_period(period_month_str)
+        if period_err:
+            return period_err
+
+        # Obtener tenant del usuario
+        tenant = get_tenant_for_user(request.user, request)
+        if not tenant:
+            return JsonResponse(
+                {"error": {"code": "not_found", "message": "No se encontró un tenant para el usuario"}},
+                status=404
+            )
+
+        # Verificar permisos de upload
+        permissions = get_user_permissions(request.user)
+        if not permissions.get("can_upload"):
+            return JsonResponse(
+                {"error": {"code": "forbidden", "message": "No tienes permisos para lanzar análisis"}},
+                status=403
+            )
+
+        # Crear AnalysisJob
+        job = AnalysisJob.objects.create(
+            tenant=tenant,
+            created_by=request.user,
+            period_month=period_date,
+            status=JobStatus.RUNNING,
+            source="api",  # Distingue de fuente Excel
+        )
+        logger.info(
+            "AnalyzeFromAPIView: Job %s creado para periodo=%s, secuencia=%s",
+            job.id, period_month_str, secuencia_periodo,
+        )
+
+        try:
+            # Importar módulos del core
+            from api_client import ServicioGeneralClient
+            from data_loader import DataLoader
+            from analysis_engine import AnalysisEngine
+            from config import API_CONFIG
+
+            # Inicializar cliente y loader
+            client = ServicioGeneralClient.from_config(API_CONFIG)
+            loader = DataLoader()
+
+            # Cargar PA y SV de TODA la empresa (1 sola iteración de unidades)
+            logger.info("AnalyzeFromAPIView: Cargando empresa completa desde API...")
+            df_pa, df_sv = loader.load_empresa_completa(
+                client=client,
+                secuencia_periodo=secuencia_periodo,
+                servicio_tareo=servicio_tareo,
+            )
+            logger.info(
+                "AnalyzeFromAPIView: df_pa=%d filas, df_sv=%d filas",
+                len(df_pa), len(df_sv)
+            )
+
+            # Ejecutar análisis PA vs SV
+            engine = AnalysisEngine()
+            df_result = engine.perform_full_outer_join(df_pa, df_sv)
+            logger.info("AnalyzeFromAPIView: Resultado del análisis: %d filas", len(df_result))
+
+            # Guardar artefacto Parquet
+            from io import BytesIO
+            from jobs.models import Artifact, ArtifactKind
+            from jobs.utils import generate_analysis_metrics
+
+            parquet_buffer = BytesIO()
+            df_result.write_parquet(parquet_buffer)
+            parquet_buffer.seek(0)
+
+            artifact_parquet = Artifact.objects.create(
+                job=job,
+                kind=ArtifactKind.PARQUET,
+            )
+            artifact_parquet.file.save(
+                f"analysis_{job.id}.parquet",
+                parquet_buffer,
+                save=True,
+            )
+            logger.info("AnalyzeFromAPIView: Parquet guardado como artefacto %s", artifact_parquet.id)
+
+            # Generar métricas y crear/actualizar Snapshot
+            metrics = generate_analysis_metrics(df_result)
+
+            from jobs.models import AnalysisSnapshot
+            AnalysisSnapshot.objects.update_or_create(
+                tenant=tenant,
+                period_month=period_date,
+                defaults={
+                    "job": job,
+                    "metrics": metrics,
+                }
+            )
+
+            # Marcar job como exitoso
+            job.status = JobStatus.SUCCEEDED
+            job.save(update_fields=["status"])
+
+            logger.info("AnalyzeFromAPIView: Job %s completado exitosamente.", job.id)
+
+            return JsonResponse({
+                "status": "success",
+                "job_id": str(job.id),
+                "period": period_month_str,
+                "secuencia_periodo": secuencia_periodo,
+                "rows_pa": len(df_pa),
+                "rows_sv": len(df_sv),
+                "rows_result": len(df_result),
+                "kpis": {
+                    "total_personal_asignado": metrics.get("total_personal_asignado", 0),
+                    "total_servicio_vivo": metrics.get("total_servicio_vivo", 0),
+                    "coincidencias": metrics.get("coincidencias", 0),
+                    "cobertura_porcentaje": metrics.get("cobertura_porcentaje", 0),
+                },
+                "message": f"Análisis completado para periodo {period_month_str} "
+                           f"(secuencia {secuencia_periodo}). "
+                           f"{len(df_pa)} registros PA, {len(df_sv)} SV.",
+            })
+
+        except Exception as exc:
+            logger.error("AnalyzeFromAPIView: Error en job %s: %s", job.id, exc, exc_info=True)
+            job.status = JobStatus.FAILED
+            job.error_message = str(exc)
+            job.save(update_fields=["status", "error_message"])
+
+            return JsonResponse(
+                {
+                    "error": {
+                        "code": "analysis_failed",
+                        "message": str(exc),
+                        "job_id": str(job.id),
+                    }
+                },
+                status=500
+            )
+

@@ -1,14 +1,58 @@
-﻿{% load static %}
+{% load static %}
 <!DOCTYPE html>
 <html lang="es">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subir Archivos - PA vs SV</title>
+    <title>Gestión de Análisis - PA vs SV</title>
     <link rel="stylesheet" href="{% static 'dashboard/vendor/bootstrap.min.css' %}">
     <link rel="stylesheet" href="{% static 'dashboard/utilities.css' %}?v={% now 'U' %}">
     <link rel="stylesheet" href="{% static 'dashboard/liderman_theme.css' %}?v={% now 'U' %}">
+    <style>
+        /* ── Estilos del Panel API ─────────────────────────────────── */
+        .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #e5e7eb; margin-bottom: 1.5rem; }
+        .tab-btn {
+            padding: .6rem 1.4rem; font-size: .9rem; font-weight: 600;
+            border: none; background: none; cursor: pointer; color: #6b7280;
+            border-bottom: 3px solid transparent; margin-bottom: -2px;
+            transition: color .2s, border-color .2s;
+        }
+        .tab-btn.active { color: #1d4ed8; border-bottom-color: #1d4ed8; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        .api-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+        @media (max-width: 768px) { .api-grid { grid-template-columns: 1fr; } }
+
+        .periodo-badge {
+            display: inline-flex; align-items: center; gap: .4rem;
+            background: #eff6ff; color: #1d4ed8; font-size: .75rem;
+            font-weight: 600; padding: .2rem .6rem; border-radius: 9999px;
+        }
+        .kpi-mini-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .75rem; margin-top: 1rem; }
+        .kpi-mini { background: #f8fafc; border-radius: .5rem; padding: .75rem 1rem; }
+        .kpi-mini .label { font-size: .7rem; color: #64748b; text-transform: uppercase; font-weight: 600; }
+        .kpi-mini .value { font-size: 1.4rem; font-weight: 700; color: #1e293b; }
+
+        .api-spinner {
+            display: none; width: 1.2rem; height: 1.2rem;
+            border: 2px solid #bfdbfe; border-top-color: #1d4ed8;
+            border-radius: 50%; animation: spin .7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .step-list { list-style: none; padding: 0; margin: .75rem 0 0; }
+        .step-list li {
+            font-size: .8rem; color: #64748b; padding: .25rem 0;
+            display: flex; align-items: center; gap: .4rem;
+        }
+        .step-list li.done  { color: #16a34a; }
+        .step-list li.doing { color: #1d4ed8; font-weight: 600; }
+        .step-list li::before { content: '○'; }
+        .step-list li.done::before  { content: '✓'; }
+        .step-list li.doing::before { content: '●'; }
+    </style>
 </head>
 
 <body class="min-h-screen" data-api-root="{% url 'dashboard:main' %}"
@@ -25,7 +69,7 @@
                     <h1 class="hud-title">Gestión de Análisis</h1>
                     <p class="hud-subtitle">
                         {% if permissions.can_upload %}
-                        Arrastra o selecciona tus archivos de Personal Asignado y Servicio Vivo
+                        Sube archivos Excel o lanza análisis directo desde la API
                         {% else %}
                         Visualización de análisis (solo lectura)
                         {% endif %}
@@ -55,156 +99,297 @@
 
     <main class="container mx-auto px-6 py-8">
         {% if permissions.can_upload %}
-        <!-- Upload Section - Solo para admin/coordinator -->
+        <!-- Upload Section con Tabs -->
         <section class="bg-white rounded-xl p-8 mb-8">
-            <h2 class="hud-title text-xl mb-6">➕ Nuevo Análisis</h2>
+            <h2 class="hud-title text-xl mb-4">➕ Nuevo Análisis</h2>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <!-- Personal Asignado Dropzone -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Personal Asignado (PA)
-                    </label>
-                    <div id="dropzone-pa" class="dropzone rounded-xl p-8 text-center cursor-pointer">
-                        <input type="file" id="file-pa" accept=".xlsx,.xls,.csv" class="hidden">
-                        <div id="dropzone-pa-content">
-                            <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none"
-                                viewBox="0 0 48 48">
-                                <path
-                                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                            <p class="text-gray-600">Arrastra aquí o <span
-                                    class="text-blue-600 underline">selecciona</span></p>
-                            <p class="text-gray-400 text-sm mt-1">Excel de Personal Asignado (.xlsx)</p>
-                        </div>
-                        <div id="dropzone-pa-file" class="hidden">
-                            <svg class="mx-auto h-10 w-10 text-green-500 mb-2" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <p class="text-green-700 font-medium" id="file-pa-name"></p>
-                            <p class="text-gray-500 text-sm" id="file-pa-size"></p>
-                            <button type="button" id="clear-pa-btn"
-                                class="mt-2 text-red-500 text-sm hover:underline">Quitar</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Servicio Vivo Dropzone -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Servicio Vivo (SV)
-                    </label>
-                    <div id="dropzone-sv" class="dropzone rounded-xl p-8 text-center cursor-pointer">
-                        <input type="file" id="file-sv" accept=".xlsx,.xls,.csv" class="hidden">
-                        <div id="dropzone-sv-content">
-                            <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none"
-                                viewBox="0 0 48 48">
-                                <path
-                                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                            <p class="text-gray-600">Arrastra aquí o <span
-                                    class="text-blue-600 underline">selecciona</span></p>
-                            <p class="text-gray-400 text-sm mt-1">Excel de Servicio Vivo (.xlsx)</p>
-                        </div>
-                        <div id="dropzone-sv-file" class="hidden">
-                            <svg class="mx-auto h-10 w-10 text-green-500 mb-2" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                            </svg>
-                            <p class="text-green-700 font-medium" id="file-sv-name"></p>
-                            <p class="text-gray-500 text-sm" id="file-sv-size"></p>
-                            <button type="button" id="clear-sv-btn"
-                                class="mt-2 text-red-500 text-sm hover:underline">Quitar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Period Month -->
-            <div class="mb-6">
-                <label class="block text-sm font-medium text-gray-700 mb-2">
-                    Periodo <span class="text-red-500">*</span>
-                </label>
-                <input type="month" id="period-month" required
-                    class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-            </div>
-
-            <!-- Submit Button -->
-            <div class="flex items-center gap-4">
-                <button id="submit-btn" disabled
-                    class="btn btn-lg btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
-                    <svg id="submit-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
-                        </path>
-                    </svg>
-                    <span id="submit-text">Iniciar Análisis</span>
+            <!-- Tabs: Excel | API -->
+            <div class="tab-bar">
+                <button class="tab-btn active" data-tab="tab-excel" id="btn-tab-excel">
+                    📂 Subir Archivos Excel
                 </button>
-                <span id="status-text" class="text-gray-500"></span>
+                <button class="tab-btn" data-tab="tab-api" id="btn-tab-api">
+                    ⚡ Desde API (Empresa Completa)
+                </button>
             </div>
 
-            <!-- Progress Section -->
-            <div id="progress-section" class="hidden mt-6">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-sm font-medium text-gray-700">Procesando...</span>
-                    <span id="progress-percent" class="text-sm text-gray-500">0%</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-3">
-                    <div id="progress-bar" class="progress-bar bg-blue-600 h-3 rounded-full" style="width: 0%"></div>
-                </div>
-                <p id="progress-status" class="text-sm text-gray-500 mt-2">Subiendo archivos...</p>
-            </div>
-
-            <!-- Result Section -->
-            <div id="result-section" class="hidden mt-6 p-4 rounded-lg">
-                <div id="result-success" class="hidden bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        <div>
-                            <p class="font-medium text-green-800">¡Análisis completado!</p>
-                            <p class="text-sm text-green-600">El Excel comparativo está listo para descargar.</p>
+            <!-- TAB 1: Excel (original) -->
+            <div class="tab-panel active" id="tab-excel">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <!-- Personal Asignado Dropzone -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Personal Asignado (PA)
+                        </label>
+                        <div id="dropzone-pa" class="dropzone rounded-xl p-8 text-center cursor-pointer">
+                            <input type="file" id="file-pa" accept=".xlsx,.xls,.csv" class="hidden">
+                            <div id="dropzone-pa-content">
+                                <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none"
+                                    viewBox="0 0 48 48">
+                                    <path
+                                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <p class="text-gray-600">Arrastra aquí o <span
+                                        class="text-blue-600 underline">selecciona</span></p>
+                                <p class="text-gray-400 text-sm mt-1">Excel de Personal Asignado (.xlsx)</p>
+                            </div>
+                            <div id="dropzone-pa-file" class="hidden">
+                                <svg class="mx-auto h-10 w-10 text-green-500 mb-2" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <p class="text-green-700 font-medium" id="file-pa-name"></p>
+                                <p class="text-gray-500 text-sm" id="file-pa-size"></p>
+                                <button type="button" id="clear-pa-btn"
+                                    class="mt-2 text-red-500 text-sm hover:underline">Quitar</button>
+                            </div>
                         </div>
                     </div>
-                    <div class="mt-4 flex gap-3">
-                        <a id="download-link" href="#"
-                            class="btn btn-success">
-                            Descargar Excel
-                        </a>
-                        <a href="{% url 'dashboard:main' %}"
-                            class="btn btn-dashboard">
-                            Ver en Dashboard
-                        </a>
-                        <button id="reset-form-btn"
-                            class="btn btn-outline">
-                            Nuevo Análisis
+
+                    <!-- Servicio Vivo Dropzone -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Servicio Vivo (SV)
+                        </label>
+                        <div id="dropzone-sv" class="dropzone rounded-xl p-8 text-center cursor-pointer">
+                            <input type="file" id="file-sv" accept=".xlsx,.xls,.csv" class="hidden">
+                            <div id="dropzone-sv-content">
+                                <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none"
+                                    viewBox="0 0 48 48">
+                                    <path
+                                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <p class="text-gray-600">Arrastra aquí o <span
+                                        class="text-blue-600 underline">selecciona</span></p>
+                                <p class="text-gray-400 text-sm mt-1">Excel de Servicio Vivo (.xlsx)</p>
+                            </div>
+                            <div id="dropzone-sv-file" class="hidden">
+                                <svg class="mx-auto h-10 w-10 text-green-500 mb-2" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <p class="text-green-700 font-medium" id="file-sv-name"></p>
+                                <p class="text-gray-500 text-sm" id="file-sv-size"></p>
+                                <button type="button" id="clear-sv-btn"
+                                    class="mt-2 text-red-500 text-sm hover:underline">Quitar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Period Month -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Periodo <span class="text-red-500">*</span>
+                    </label>
+                    <input type="month" id="period-month" required
+                        class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex items-center gap-4">
+                    <button id="submit-btn" disabled
+                        class="btn btn-lg btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg id="submit-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+                            </path>
+                        </svg>
+                        <span id="submit-text">Iniciar Análisis</span>
+                    </button>
+                    <span id="status-text" class="text-gray-500"></span>
+                </div>
+
+                <!-- Progress Section -->
+                <div id="progress-section" class="hidden mt-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700">Procesando...</span>
+                        <span id="progress-percent" class="text-sm text-gray-500">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3">
+                        <div id="progress-bar" class="progress-bar bg-blue-600 h-3 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p id="progress-status" class="text-sm text-gray-500 mt-2">Subiendo archivos...</p>
+                </div>
+
+                <!-- Result Section -->
+                <div id="result-section" class="hidden mt-6 p-4 rounded-lg">
+                    <div id="result-success" class="hidden bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div class="flex items-center gap-3">
+                            <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-green-800">¡Análisis completado!</p>
+                                <p class="text-sm text-green-600">El Excel comparativo está listo para descargar.</p>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex gap-3">
+                            <a id="download-link" href="#"
+                                class="btn btn-success">
+                                Descargar Excel
+                            </a>
+                            <a href="{% url 'dashboard:main' %}"
+                                class="btn btn-dashboard">
+                                Ver en Dashboard
+                            </a>
+                            <button id="reset-form-btn"
+                                class="btn btn-outline">
+                                Nuevo Análisis
+                            </button>
+                        </div>
+                    </div>
+                    <div id="result-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex items-center gap-3">
+                            <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <div>
+                                <p class="font-medium text-red-800">Error en el análisis</p>
+                                <p id="error-message" class="text-sm text-red-600"></p>
+                            </div>
+                        </div>
+                        <button id="reset-form-btn-2"
+                            class="btn btn-primary mt-4">
+                            Intentar de nuevo
                         </button>
                     </div>
                 </div>
-                <div id="result-error" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
-                    <div class="flex items-center gap-3">
-                        <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
+            </div><!-- /tab-excel -->
+
+            <!-- TAB 2: Análisis desde API -->
+            <div class="tab-panel" id="tab-api">
+
+                <!-- Info Banner -->
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <div class="flex gap-3">
+                        <span class="text-blue-500 text-xl">⚡</span>
                         <div>
-                            <p class="font-medium text-red-800">Error en el análisis</p>
-                            <p id="error-message" class="text-sm text-red-600"></p>
+                            <p class="font-semibold text-blue-800 text-sm">Análisis Directo desde ServicioGeneral API</p>
+                            <p class="text-blue-600 text-sm mt-1">
+                                Obtiene <strong>PA (Tareo real) + SV (Programación)</strong> de <strong>toda la empresa</strong>
+                                iterando sobre las zonas — sin necesidad de subir archivos Excel.
+                                Solo elige el periodo de nómina y clic en Analizar.
+                            </p>
                         </div>
                     </div>
-                    <button id="reset-form-btn-2"
-                        class="btn btn-primary mt-4">
-                        Intentar de nuevo
-                    </button>
                 </div>
-            </div>
+
+                <!-- Formulario API -->
+                <div class="api-grid">
+                    <!-- Secuencia Periodo -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Secuencia de Periodo <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" id="api-secuencia" min="1" max="999" placeholder="Ej: 17"
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-400 mt-1">
+                            ID numérico del periodo de nómina
+                            <span class="periodo-badge" id="periodo-hint">17 → Nov 2025</span>
+                        </p>
+                    </div>
+
+                    <!-- Tipo de Servicio -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Tipo de Servicio
+                        </label>
+                        <select id="api-servicio" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                            <option value="1">1 — Seguridad</option>
+                            <option value="2">2 — Limpieza</option>
+                            <option value="3">3 — Otros</option>
+                        </select>
+                    </div>
+
+                    <!-- Mes calendario (YYYY-MM para el Job) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Mes de Análisis <span class="text-red-500">*</span>
+                        </label>
+                        <input type="month" id="api-period-month"
+                            class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-400 mt-1">Etiqueta para el historial del dashboard</p>
+                    </div>
+                </div>
+
+                <!-- Botón Analizar -->
+                <div class="flex items-center gap-4 mb-4">
+                    <button id="api-submit-btn"
+                        class="btn btn-lg btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled>
+                        <div class="api-spinner" id="api-spinner"></div>
+                        <span id="api-submit-text">⚡ Analizar desde API</span>
+                    </button>
+                    <span id="api-status-text" class="text-sm text-gray-500"></span>
+                </div>
+
+                <!-- Pasos de progreso -->
+                <div id="api-steps-section" class="hidden">
+                    <ul class="step-list" id="api-steps">
+                        <li id="step-connect">Conectando a ServicioGeneral API…</li>
+                        <li id="step-zonas">Obteniendo catálogo de zonas…</li>
+                        <li id="step-unidades">Cargando unidades de la empresa…</li>
+                        <li id="step-sv">Descargando Servicio Vivo (programación)…</li>
+                        <li id="step-pa">Descargando Personal Asignado (tareo)…</li>
+                        <li id="step-analisis">Ejecutando análisis PA vs SV…</li>
+                        <li id="step-guardado">Guardando resultados en el dashboard…</li>
+                    </ul>
+                </div>
+
+                <!-- Resultado KPIs -->
+                <div id="api-result" class="hidden mt-4">
+                    <div id="api-result-ok" class="hidden bg-green-50 border border-green-200 rounded-lg p-5">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-2xl">✅</span>
+                            <div>
+                                <p class="font-semibold text-green-800">¡Análisis completado!</p>
+                                <p id="api-result-msg" class="text-sm text-green-700"></p>
+                            </div>
+                        </div>
+                        <div class="kpi-mini-grid">
+                            <div class="kpi-mini">
+                                <div class="label">Personal Asignado (PA)</div>
+                                <div class="value" id="kpi-pa">—</div>
+                            </div>
+                            <div class="kpi-mini">
+                                <div class="label">Servicio Vivo (SV)</div>
+                                <div class="value" id="kpi-sv">—</div>
+                            </div>
+                            <div class="kpi-mini">
+                                <div class="label">Coincidencias</div>
+                                <div class="value" id="kpi-coinc">—</div>
+                            </div>
+                            <div class="kpi-mini">
+                                <div class="label">Cobertura</div>
+                                <div class="value" id="kpi-cobertura">—</div>
+                            </div>
+                        </div>
+                        <div class="mt-4 flex gap-3">
+                            <a href="{% url 'dashboard:main' %}" class="btn btn-dashboard">📊 Ver en Dashboard</a>
+                            <button id="api-reset-btn" class="btn btn-outline">Nuevo Análisis</button>
+                        </div>
+                    </div>
+                    <div id="api-result-err" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex gap-3 items-start">
+                            <span class="text-red-500 text-xl">❌</span>
+                            <div>
+                                <p class="font-medium text-red-800">Error al conectar con la API</p>
+                                <p id="api-error-msg" class="text-sm text-red-600 mt-1"></p>
+                            </div>
+                        </div>
+                        <button id="api-reset-btn-2" class="btn btn-primary mt-4">Reintentar</button>
+                    </div>
+                </div>
+
+            </div><!-- /tab-api -->
+
         </section>
         {% else %}
         <!-- Message for users without upload permission -->
@@ -240,6 +425,7 @@
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Periodo</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fuente</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Creado por</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
@@ -253,6 +439,13 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {% if job.period_month %}{{ job.period_month|date:"F Y" }}{% else %}-{% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                {% if job.source == 'api' %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700">⚡ API</span>
+                                {% else %}
+                                <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">📂 Excel</span>
+                                {% endif %}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                 {% if job.created_by %}{{ job.created_by.username }}{% else %}-{% endif %}
@@ -295,9 +488,8 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                                No hay análisis previos. {% if permissions.can_upload %}¡Sube tus archivos para
-                                comenzar!{% endif %}
+                            <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                                No hay análisis previos. {% if permissions.can_upload %}¡Sube archivos o usa la opción API!{% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -331,7 +523,170 @@
             </div>
         </div>
     </div>
+
     <script src="{% static 'dashboard/upload.js' %}"></script>
+
+    <!-- ── Script del Panel API ──────────────────────────────────────── -->
+    <script>
+    (function () {
+        'use strict';
+
+        // Tabs
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Campos del formulario API
+        const secInput    = document.getElementById('api-secuencia');
+        const monthInput  = document.getElementById('api-period-month');
+        const servicioSel = document.getElementById('api-servicio');
+        const submitBtn   = document.getElementById('api-submit-btn');
+        const spinner     = document.getElementById('api-spinner');
+        const submitTxt   = document.getElementById('api-submit-text');
+        const statusTxt   = document.getElementById('api-status-text');
+        const stepsSection= document.getElementById('api-steps-section');
+        const resultDiv   = document.getElementById('api-result');
+        const periodoHint = document.getElementById('periodo-hint');
+
+        // Habilitar botón cuando ambos campos estén completos
+        function checkForm() {
+            const ok = secInput.value.trim() !== '' && monthInput.value !== '';
+            submitBtn.disabled = !ok;
+        }
+        secInput.addEventListener('input', () => { updateHint(); checkForm(); });
+        monthInput.addEventListener('input', checkForm);
+
+        function updateHint() {
+            const n = parseInt(secInput.value, 10);
+            if (!n) { periodoHint.textContent = ''; return; }
+            // Referencia orientativa (ajustar si la numeración cambia)
+            const BASE_YEAR = 2024, BASE_MES = 6, BASE_SEQ = 1;
+            const totalMeses = BASE_MES - 1 + (n - BASE_SEQ);
+            const d = new Date(BASE_YEAR, totalMeses, 1);
+            const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+            periodoHint.textContent = `${n} → ${meses[d.getMonth()]} ${d.getFullYear()}`;
+        }
+
+        // Pasos de progreso (simulado mientras la API procesa)
+        const STEPS = ['step-connect','step-zonas','step-unidades','step-sv','step-pa','step-analisis','step-guardado'];
+        let stepTimer = null;
+        let currentStep = 0;
+
+        function startSteps() {
+            stepsSection.classList.remove('hidden');
+            currentStep = 0;
+            markStep(0, 'doing');
+            stepTimer = setInterval(() => {
+                if (currentStep < STEPS.length - 1) {
+                    markStep(currentStep, 'done');
+                    currentStep++;
+                    markStep(currentStep, 'doing');
+                }
+            }, 1800);
+        }
+
+        function stopSteps(success) {
+            clearInterval(stepTimer);
+            STEPS.forEach((id, i) => {
+                if (i <= currentStep) markStep(i, success ? 'done' : '');
+            });
+        }
+
+        function markStep(idx, cls) {
+            const el = document.getElementById(STEPS[idx]);
+            if (!el) return;
+            el.className = cls;
+        }
+
+        function resetUI() {
+            stepsSection.classList.add('hidden');
+            resultDiv.classList.add('hidden');
+            document.getElementById('api-result-ok').classList.add('hidden');
+            document.getElementById('api-result-err').classList.add('hidden');
+            STEPS.forEach(id => { const el = document.getElementById(id); if (el) el.className = ''; });
+            spinner.style.display = 'none';
+            submitTxt.textContent = '⚡ Analizar desde API';
+            submitBtn.disabled = false;
+            statusTxt.textContent = '';
+        }
+
+        document.getElementById('api-reset-btn')?.addEventListener('click', resetUI);
+        document.getElementById('api-reset-btn-2')?.addEventListener('click', resetUI);
+
+        // Submit
+        submitBtn.addEventListener('click', async () => {
+            const secuencia   = secInput.value.trim();
+            const periodMonth = monthInput.value;
+            const servicio    = servicioSel.value;
+
+            if (!secuencia || !periodMonth) return;
+
+            // UI de carga
+            submitBtn.disabled = true;
+            spinner.style.display = 'block';
+            submitTxt.textContent = 'Procesando…';
+            statusTxt.textContent = 'Conectando con ServicioGeneral API…';
+            resultDiv.classList.add('hidden');
+            startSteps();
+
+            const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+
+            try {
+                const res = await fetch('{% url "dashboard:api_analyze_from_api" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken,
+                    },
+                    body: JSON.stringify({
+                        secuencia_periodo: secuencia,
+                        servicio_tareo: servicio,
+                        period_month: periodMonth,
+                    }),
+                });
+
+                const data = await res.json();
+                stopSteps(res.ok);
+                spinner.style.display = 'none';
+                submitTxt.textContent = '⚡ Analizar desde API';
+                submitBtn.disabled = false;
+                statusTxt.textContent = '';
+                resultDiv.classList.remove('hidden');
+
+                if (res.ok && data.status === 'success') {
+                    document.getElementById('api-result-ok').classList.remove('hidden');
+                    document.getElementById('api-result-err').classList.add('hidden');
+                    document.getElementById('api-result-msg').textContent = data.message || '';
+                    document.getElementById('kpi-pa').textContent    = (data.kpis?.total_personal_asignado ?? '—').toLocaleString();
+                    document.getElementById('kpi-sv').textContent    = (data.kpis?.total_servicio_vivo ?? '—').toLocaleString();
+                    document.getElementById('kpi-coinc').textContent = (data.kpis?.coincidencias ?? '—').toLocaleString();
+                    document.getElementById('kpi-cobertura').textContent = ((data.kpis?.cobertura_porcentaje ?? 0).toFixed(1)) + '%';
+                } else {
+                    document.getElementById('api-result-err').classList.remove('hidden');
+                    document.getElementById('api-result-ok').classList.add('hidden');
+                    const errMsg = data.error?.message || JSON.stringify(data);
+                    document.getElementById('api-error-msg').textContent = errMsg;
+                }
+
+            } catch (err) {
+                stopSteps(false);
+                spinner.style.display = 'none';
+                submitTxt.textContent = '⚡ Analizar desde API';
+                submitBtn.disabled = false;
+                statusTxt.textContent = '';
+                resultDiv.classList.remove('hidden');
+                document.getElementById('api-result-err').classList.remove('hidden');
+                document.getElementById('api-error-msg').textContent = `Error de red: ${err.message}`;
+            }
+        });
+
+    })();
+    </script>
 </body>
 
 </html>

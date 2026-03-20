@@ -95,3 +95,22 @@ OUTPUT_SHEETS: Dict[str, str] = {
     "estadisticas": "Estadisticas",
     "investigacion": "Investigacion"
 }
+
+# ---------------------------------------------------------------------------
+# ServicioGeneral API Configuration
+# Credenciales leídas desde variables de entorno; caen al valor por defecto
+# solo en desarrollo local. En producción usar únicamente variables de entorno.
+# ---------------------------------------------------------------------------
+import os as _os
+
+API_CONFIG: Dict[str, Any] = {
+    # URL base de la API interna (sin trailing slash)
+    "base_url": _os.getenv("SERVICIO_GENERAL_URL", "http://192.168.1.44/ServicioGeneral"),
+    # Credenciales de acceso
+    "usuario": _os.getenv("SERVICIO_GENERAL_USER", "USUWEB"),
+    "clave": _os.getenv("SERVICIO_GENERAL_CLAVE", "160821"),
+    # Timeout en segundos para cada request HTTP
+    "timeout_seconds": int(_os.getenv("SERVICIO_GENERAL_TIMEOUT", "30")),
+    # Margen en segundos antes de que expire el token para renovarlo
+    "token_refresh_margin_seconds": 300,
+}
