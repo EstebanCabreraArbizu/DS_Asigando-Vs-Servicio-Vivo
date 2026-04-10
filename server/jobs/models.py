@@ -42,6 +42,7 @@ class AnalysisJob(models.Model):
 
     period_month = models.DateField(null=True, blank=True, help_text="Mes del análisis (YYYY-MM-01)")
     status = models.CharField(max_length=20, choices=JobStatus.choices, default=JobStatus.QUEUED)
+    source = models.CharField(max_length=50, default="dashboard_upload", help_text="Origen del job")
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

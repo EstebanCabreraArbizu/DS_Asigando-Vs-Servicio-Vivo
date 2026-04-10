@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from django.db import IntegrityError
 from django.http import FileResponse, HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -152,18 +153,42 @@ class JobCreateView(APIView):
                     code="invalid_file_type"
                 )
 
-        job = AnalysisJob.objects.create(
-            tenant=tenant,
-            period_month=serializer.validated_data.get("period_month"),
-            input_personal_asignado=pa_file,
-            input_servicio_vivo=sv_file,
-            created_by=request.user if request.user.is_authenticated else None,
-        )
+        try:
+            job = AnalysisJob.objects.create(
+                tenant=tenant,
+                period_month=serializer.validated_data.get("period_month"),
+                source="dashboard_upload",
+                input_personal_asignado=pa_file,
+                input_servicio_vivo=sv_file,
+                created_by=request.user if request.user.is_authenticated else None,
+            )
+        except IntegrityError:
+            logger.exception("Integrity error creating analysis job")
+            return ErrorResponse.server_error(
+                "No se pudo crear el análisis por un problema de integridad de datos.",
+                code="job_integrity_error"
+            )
+        except Exception:
+            logger.exception("Unexpected error creating analysis job")
+            return ErrorResponse.server_error(
+                "No se pudo crear el análisis. Intenta nuevamente.",
+                code="job_create_error"
+            )
         
         username = request.user.username if request.user.is_authenticated else "anonymous"
         logger.info(f"Job {job.id} created by {username} for tenant {tenant.slug}")
 
-        run_analysis_job.delay(str(job.id))
+        try:
+            run_analysis_job.delay(str(job.id))
+        except Exception:
+            logger.exception("Failed to enqueue analysis job %s", job.id)
+            job.status = JobStatus.FAILED
+            job.error_message = "No se pudo iniciar el procesamiento del análisis."
+            job.save(update_fields=["status", "error_message", "updated_at"])
+            return ErrorResponse.service_unavailable(
+                "No se pudo iniciar el procesamiento del análisis. Intenta nuevamente.",
+                code="job_queue_error"
+            )
 
         return Response(
             {

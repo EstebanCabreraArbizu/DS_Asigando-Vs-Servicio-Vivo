@@ -7,6 +7,8 @@
 // Liderman theme chart text color (dark for white backgrounds)
 const CHART_TEXT_COLOR = '#2D3748';
 let currentPeriod = null;
+let currentJobId = null;
+let periodJobsByPeriod = new Map();
 let currentPage = 1;
 let sortBy = 'Personal_Real';
 let sortOrder = 'desc';
@@ -161,6 +163,77 @@ function setupTabs() {
 }
 
 // ===== CARGAR PERIODOS =====
+function buildSelectedJobExportUrl() {
+    if (!currentJobId) return '#';
+    const apiPrefix = document.body.dataset.apiRoot || '/dashboard/';
+    return `${apiPrefix}api/v1/jobs/${currentJobId}/excel/`;
+}
+
+function canExportCurrentJob() {
+    if (!currentJobId) return false;
+    const jobs = periodJobsByPeriod.get(currentPeriod) || [];
+    const selectedJob = jobs.find(job => job.id === currentJobId);
+    if (!selectedJob) {
+        return true;
+    }
+    return selectedJob.can_export !== false;
+}
+
+function syncExportLinks() {
+    const exportHref = buildSelectedJobExportUrl();
+    const hasSelectedJob = canExportCurrentJob();
+
+    const headerExportLink = document.getElementById('header-export-link');
+    if (headerExportLink) {
+        headerExportLink.href = exportHref;
+        headerExportLink.classList.toggle('opacity-60', !hasSelectedJob);
+        headerExportLink.classList.toggle('pointer-events-none', !hasSelectedJob);
+        headerExportLink.setAttribute('aria-disabled', hasSelectedJob ? 'false' : 'true');
+    }
+}
+
+function populateAnalysisSelect(periodValue, preferredJobId = null) {
+    const select = document.getElementById('analysis-select');
+    if (!select) {
+        currentJobId = preferredJobId || null;
+        syncExportLinks();
+        return;
+    }
+
+    const jobs = periodJobsByPeriod.get(periodValue) || [];
+    select.innerHTML = '';
+
+    if (!jobs.length) {
+        select.innerHTML = '<option value="">Sin análisis</option>';
+        select.disabled = true;
+        currentJobId = null;
+        syncExportLinks();
+        return;
+    }
+
+    select.disabled = false;
+    jobs.forEach(job => {
+        const option = document.createElement('option');
+        option.value = job.id;
+        option.textContent = job.label || `${job.id} - ${job.status_label || job.status || ''}`;
+        select.appendChild(option);
+    });
+
+    const fallbackJobId =
+        preferredJobId ||
+        jobs.find(job => job.can_export)?.id ||
+        jobs[0].id;
+
+    if (jobs.some(job => job.id === fallbackJobId)) {
+        select.value = fallbackJobId;
+    } else {
+        select.selectedIndex = 0;
+    }
+
+    currentJobId = select.value || null;
+    syncExportLinks();
+}
+
 async function loadPeriods() {
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
@@ -172,12 +245,15 @@ async function loadPeriods() {
         const select1 = document.getElementById('compare-period1');
         const select2 = document.getElementById('compare-period2');
 
+        periodJobsByPeriod = new Map();
+
         select.innerHTML = '';
         select1.innerHTML = '';
         select2.innerHTML = '';
 
         if (data.periods?.length > 0) {
             data.periods.forEach((p, i) => {
+                periodJobsByPeriod.set(p.value, p.jobs || []);
                 const opt = `<option value="${p.value}">${p.label}</option>`;
                 select.innerHTML += opt;
                 select1.innerHTML += opt;
@@ -186,23 +262,39 @@ async function loadPeriods() {
             if (data.periods.length > 1) select2.selectedIndex = 1;
 
             currentPeriod = data.periods[0].value;
-            await loadMetrics(currentPeriod);
+            populateAnalysisSelect(currentPeriod, data.periods[0].job_id || null);
+            await loadMetrics(currentPeriod, currentJobId);
         } else {
             select.innerHTML = '<option value="">Sin datos</option>';
+            const analysisSelect = document.getElementById('analysis-select');
+            if (analysisSelect) {
+                analysisSelect.innerHTML = '<option value="">Sin análisis</option>';
+                analysisSelect.disabled = true;
+            }
+            currentJobId = null;
+            syncExportLinks();
+            showNoData();
         }
     } catch (err) {
         console.error('Error cargando periodos:', err);
+        currentJobId = null;
+        syncExportLinks();
+        showNoData();
     }
 }
 
 // ===== CARGAR MÉTRICAS =====
-async function loadMetrics(period) {
+async function loadMetrics(period, jobId = currentJobId) {
     showLoading(true);
     try {
         // Construir URL con filtros
-        const params = new URLSearchParams({
-            period: period
-        });
+        const params = new URLSearchParams();
+        if (period) {
+            params.append('period', period);
+        }
+        if (jobId) {
+            params.append('job_id', jobId);
+        }
 
         // Agregar filtros seleccionados
         const macrozona = document.getElementById('filter-macrozona').value;
@@ -225,6 +317,15 @@ async function loadMetrics(period) {
         });
         metricsData = await response.json();
 
+        if (metricsData.job_id) {
+            currentJobId = metricsData.job_id;
+            const analysisSelect = document.getElementById('analysis-select');
+            if (analysisSelect && analysisSelect.value !== currentJobId) {
+                analysisSelect.value = currentJobId;
+            }
+        }
+        syncExportLinks();
+
         if (metricsData.error) {
             showNoData();
             return;
@@ -246,6 +347,8 @@ async function loadMetrics(period) {
 
     } catch (err) {
         console.error('Error cargando métricas:', err);
+        metricsData = null;
+        showNoData();
     } finally {
         showLoading(false);
     }
@@ -646,7 +749,7 @@ async function loadClientData() {
     const search = document.getElementById('search-cliente')?.value || '';
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const url = await buildApiUrl(`${apiPrefix}api/clients/?period=${currentPeriod}&page=${clientPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
+        const url = await buildApiUrl(`${apiPrefix}api/clients/?period=${currentPeriod || ''}&job_id=${encodeURIComponent(currentJobId || '')}&page=${clientPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
         const response = await fetch(url, {
             credentials: 'same-origin'
         });
@@ -728,7 +831,7 @@ async function loadUnitData() {
     const search = document.getElementById('search-unidad')?.value || '';
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const url = await buildApiUrl(`${apiPrefix}api/units/?period=${currentPeriod}&page=${unitPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
+        const url = await buildApiUrl(`${apiPrefix}api/units/?period=${currentPeriod || ''}&job_id=${encodeURIComponent(currentJobId || '')}&page=${unitPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
         const response = await fetch(url, {
             credentials: 'same-origin'
         });
@@ -809,7 +912,7 @@ async function loadServiceData() {
     const search = document.getElementById('search-servicio')?.value || '';
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const url = await buildApiUrl(`${apiPrefix}api/services/?period=${currentPeriod}&page=${servicePage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
+        const url = await buildApiUrl(`${apiPrefix}api/services/?period=${currentPeriod || ''}&job_id=${encodeURIComponent(currentJobId || '')}&page=${servicePage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
         const response = await fetch(url, {
             credentials: 'same-origin'
         });
@@ -945,6 +1048,14 @@ function updateTables(charts) {
         document.getElementById('total-diff-cli').textContent = formatNumber(totalDiff);
         document.getElementById('total-cob-cli').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
         document.getElementById('total-pct-cli').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
+    } else {
+        const tbody = document.getElementById('table-clientes');
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">Sin datos</td></tr>';
+        document.getElementById('total-pa-cli').textContent = '-';
+        document.getElementById('total-sv-cli').textContent = '-';
+        document.getElementById('total-diff-cli').textContent = '-';
+        document.getElementById('total-cob-cli').textContent = '-';
+        document.getElementById('total-pct-cli').textContent = '-';
     }
     // Tabla Unidades
     const searchUnidad = document.getElementById('search-unidad')?.value || '';
@@ -980,6 +1091,14 @@ function updateTables(charts) {
         document.getElementById('total-diff-uni').textContent = formatNumber(totalDiff);
         document.getElementById('total-cob-uni').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
         document.getElementById('total-pct-uni').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
+    } else {
+        const tbody = document.getElementById('table-unidades');
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">Sin datos</td></tr>';
+        document.getElementById('total-pa-uni').textContent = '-';
+        document.getElementById('total-sv-uni').textContent = '-';
+        document.getElementById('total-diff-uni').textContent = '-';
+        document.getElementById('total-cob-uni').textContent = '-';
+        document.getElementById('total-pct-uni').textContent = '-';
     }
     // Tabla Servicios
     const searchServicio = document.getElementById('search-servicio')?.value || '';
@@ -1015,6 +1134,14 @@ function updateTables(charts) {
         document.getElementById('total-diff-srv').textContent = formatNumber(totalDiff);
         document.getElementById('total-cob-srv').textContent = totalSv > 0 ? ((totalPa / totalSv) * 100).toFixed(2) + '%' : '-';
         document.getElementById('total-pct-srv').textContent = totalSv > 0 ? ((totalDiff / totalSv) * 100).toFixed(2) + '%' : '-';
+    } else {
+        const tbody = document.getElementById('table-servicios');
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">Sin datos</td></tr>';
+        document.getElementById('total-pa-srv').textContent = '-';
+        document.getElementById('total-sv-srv').textContent = '-';
+        document.getElementById('total-diff-srv').textContent = '-';
+        document.getElementById('total-cob-srv').textContent = '-';
+        document.getElementById('total-pct-srv').textContent = '-';
     }
 
     // Enforce table header styles after rendering
@@ -1064,7 +1191,7 @@ async function loadTableData() {
     const search = document.getElementById('search-input').value;
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const url = await buildApiUrl(`${apiPrefix}api/details/?period=${currentPeriod}&page=${currentPage}&per_page=25&search=${encodeURIComponent(search)}&sort_by=${sortBy}&sort_order=${sortOrder}`);
+        const url = await buildApiUrl(`${apiPrefix}api/details/?period=${currentPeriod || ''}&job_id=${encodeURIComponent(currentJobId || '')}&page=${currentPage}&per_page=25&search=${encodeURIComponent(search)}&sort_by=${sortBy}&sort_order=${sortOrder}`);
         const response = await fetch(url, {
             credentials: 'same-origin'
         });
@@ -1125,11 +1252,23 @@ function setupEventListeners() {
     // Periodo
     document.getElementById('period-select').addEventListener('change', e => {
         currentPeriod = e.target.value;
+        populateAnalysisSelect(currentPeriod);
         currentPage = 1;
         clientPage = 1;
         unitPage = 1;
         servicePage = 1;
-        loadMetrics(currentPeriod);
+        loadMetrics(currentPeriod, currentJobId);
+    });
+
+    // Análisis
+    document.getElementById('analysis-select')?.addEventListener('change', e => {
+        currentJobId = e.target.value || null;
+        syncExportLinks();
+        currentPage = 1;
+        clientPage = 1;
+        unitPage = 1;
+        servicePage = 1;
+        loadMetrics(currentPeriod, currentJobId);
     });
 
     // Búsqueda con debounce
@@ -1203,7 +1342,20 @@ function setupEventListeners() {
     document.getElementById('run-compare').addEventListener('click', runComparison);
 
     // Exportar
-    document.getElementById('export-btn').addEventListener('click', () => window.open('/api/v1/jobs/latest/download/', '_blank'));
+    document.getElementById('export-btn').addEventListener('click', () => {
+        if (!canExportCurrentJob()) {
+            alert('Selecciona un análisis para exportar.');
+            return;
+        }
+        window.open(buildSelectedJobExportUrl(), '_blank');
+    });
+
+    document.getElementById('header-export-link')?.addEventListener('click', (e) => {
+        if (!canExportCurrentJob()) {
+            e.preventDefault();
+            alert('Selecciona un análisis para exportar.');
+        }
+    });
 
     // Limpiar filtros
     document.getElementById('clear-filters').addEventListener('click', () => {
@@ -1213,7 +1365,7 @@ function setupEventListeners() {
         unitPage = 1;
         servicePage = 1;
         currentPage = 1;
-        loadMetrics(currentPeriod);  // Recargar sin filtros
+        loadMetrics(currentPeriod, currentJobId);  // Recargar sin filtros
 
         // Si estamos en el tab de detalle, recargar tabla de detalle
         const activeTab = document.querySelector('.tab-btn.tab-active');
@@ -1225,7 +1377,7 @@ function setupEventListeners() {
     // Event listeners para filtros - recargar datos cuando cambian
     document.querySelectorAll('.filter-select').forEach(select => {
         select.addEventListener('change', () => {
-            loadMetrics(currentPeriod);
+            loadMetrics(currentPeriod, currentJobId);
             // Reset pagination when filters change
             clientPage = 1;
             unitPage = 1;
@@ -1310,7 +1462,29 @@ function showLoading(show) {
     el.classList.toggle('hidden', !show);
     el.classList.toggle('flex', show);
 }
-function showNoData() { document.querySelectorAll('[id^="kpi-"]').forEach(el => el.textContent = '--'); }
+function renderNoDataChart(domId, message) {
+    const chart = safeChartInit(domId);
+    chart.setOption({
+        title: {
+            text: message,
+            left: 'center',
+            top: 'center',
+            textStyle: { color: '#999' }
+        }
+    });
+}
+
+function showNoData() {
+    document.querySelectorAll('[id^="kpi-"]').forEach(el => el.textContent = '--');
+    updateTables({});
+    renderNoDataChart('chart-estado', 'Sin datos de estado');
+    renderNoDataChart('chart-clientes', 'Sin datos de clientes');
+    renderNoDataChart('chart-zona', 'Sin datos de zona');
+    renderNoDataChart('chart-macrozona', 'Sin datos de macrozona');
+    renderNoDataChart('chart-donut', 'Sin datos de cobertura');
+    renderNoDataChart('chart-grupo', 'Sin datos de grupo');
+    renderNoDataChart('chart-unidades-bar', 'Sin datos de unidades');
+}
 function formatNumber(n) {
     if (n == null) return '-';
     return new Intl.NumberFormat('es-PE', {

@@ -94,8 +94,24 @@ def custom_exception_handler(exc, context):
                 f"Client Error: {exc}",
                 extra={"request": context.get("request")}
             )
-    
-    return response
+        return response
+
+    request = context.get("request")
+    path = getattr(request, "path", "unknown")
+    logger.error(
+        f"Unhandled server error at {path}: {exc}",
+        exc_info=True,
+        extra={"request": request}
+    )
+    return Response(
+        {
+            "error": {
+                "code": "internal_server_error",
+                "message": "Error interno del servidor",
+            }
+        },
+        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
 
 
 class ErrorResponse:
@@ -127,4 +143,11 @@ class ErrorResponse:
         return Response(
             {"error": {"code": code, "message": message}},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+    @staticmethod
+    def service_unavailable(message: str = "Servicio temporalmente no disponible", code: str = "service_unavailable"):
+        return Response(
+            {"error": {"code": code, "message": message}},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
         )

@@ -4,11 +4,13 @@ Dashboard Views - Vistas para el dashboard de métricas PA vs SV.
 from io import BytesIO
 import logging
 import re
+from uuid import UUID
 
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models import Sum, Count, Avg
 from django.http import JsonResponse
+from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -90,6 +92,52 @@ def validate_period(period_str):
         )
     from datetime import datetime
     return datetime.strptime(f"{period_str}-01", "%Y-%m-%d").date(), None
+
+
+def validate_job_id(job_id_str):
+    """
+    Valida y parsea un job_id UUID.
+    Returns: (uuid_or_None, error_response_or_None)
+    """
+    if not job_id_str:
+        return None, None
+    try:
+        return UUID(str(job_id_str)), None
+    except (ValueError, TypeError, AttributeError):
+        return None, JsonResponse(
+            {"error": {"code": "invalid_param", "message": "job_id inválido"}},
+            status=400
+        )
+
+
+def resolve_analysis_job(tenant, job_id=None, period_date=None, require_succeeded=True):
+    """
+    Resuelve un AnalysisJob por job_id (prioritario) o por periodo.
+    Returns: (job_or_None, error_response_or_None)
+    """
+    filters = {"tenant": tenant}
+    if require_succeeded:
+        filters["status"] = JobStatus.SUCCEEDED
+
+    if job_id:
+        parsed_job_id, job_id_err = validate_job_id(job_id)
+        if job_id_err:
+            return None, job_id_err
+        filters["id"] = parsed_job_id
+
+        job = AnalysisJob.objects.filter(**filters).order_by("-created_at").first()
+        if not job:
+            return None, JsonResponse(
+                {"error": {"code": "not_found", "message": "Análisis no encontrado"}},
+                status=404
+            )
+        return job, None
+
+    if period_date:
+        filters["period_month"] = period_date
+
+    job = AnalysisJob.objects.filter(**filters).order_by("-created_at").first()
+    return job, None
 
 
 def validate_sort(sort_by, sort_order):
@@ -371,6 +419,7 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
     def get(self, request):
         tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")  # Formato: YYYY-MM
+        job_id = request.GET.get("job_id")
         
         # Validar periodo
         period_date, period_err = validate_period(period)
@@ -389,25 +438,29 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
         
         if not tenant:
             return JsonResponse({"error": "Tenant no encontrado"}, status=404)
-        
-        # Buscar snapshot del periodo (consulta de snapshots/jobs no incluye filtros de UI)
-        snapshot_query = {"tenant": tenant}
-        if period and period_date:
-            snapshot_query["period_month"] = period_date
 
-        snapshot = AnalysisSnapshot.objects.filter(**snapshot_query).order_by("-period_month").first()
-        
-        if not snapshot:
-            # Si no hay snapshot, intentar obtener del último job exitoso
-            job_filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
-            if period:
-                job_filters["period_month"] = period_date
-            
-            job = AnalysisJob.objects.filter(**job_filters).order_by("-created_at").first()
-            
-            if not job:
+        snapshot = None
+        job = None
+
+        if job_id:
+            job, job_err = resolve_analysis_job(
+                tenant,
+                job_id=job_id,
+                require_succeeded=False
+            )
+            if job_err:
+                return job_err
+
+            if job.status != JobStatus.SUCCEEDED:
+                resolved_period = period or (
+                    job.period_month.strftime("%Y-%m")
+                    if job.period_month else job.created_at.strftime("%Y-%m")
+                )
                 return JsonResponse({
-                    "error": "No hay datos disponibles",
+                    "error": "El análisis seleccionado aún no está listo",
+                    "period": resolved_period,
+                    "job_id": str(job.id),
+                    "job_status": job.status,
                     "kpis": {
                         "total_personal_asignado": 0,
                         "total_servicio_vivo": 0,
@@ -419,31 +472,94 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
                     "filtros_disponibles": {},
                     "filters": {}
                 })
-            
-            # Generar métricas desde el parquet del job (aplicar filtros recibidos)
-            metrics = self._generate_metrics_from_job(job, request_filters)
+
+            snapshot = AnalysisSnapshot.objects.filter(tenant=tenant, job=job).first()
         else:
+            snapshot_query = {"tenant": tenant}
+            if period and period_date:
+                snapshot_query["period_month"] = period_date
+
+            snapshot = AnalysisSnapshot.objects.filter(**snapshot_query).order_by("-period_month").first()
+            if snapshot and snapshot.job and snapshot.job.status == JobStatus.SUCCEEDED:
+                job = snapshot.job
+
+        if not snapshot and not job:
+            job, job_err = resolve_analysis_job(
+                tenant,
+                period_date=period_date if period else None,
+                require_succeeded=True
+            )
+            if job_err:
+                return job_err
+
+            if not job:
+                return JsonResponse({
+                    "error": "No hay datos disponibles",
+                    "period": period or "N/A",
+                    "job_id": None,
+                    "job_status": None,
+                    "kpis": {
+                        "total_personal_asignado": 0,
+                        "total_servicio_vivo": 0,
+                        "coincidencias": 0,
+                        "diferencia_total": 0,
+                        "cobertura_porcentaje": 0
+                    },
+                    "charts": {},
+                    "filtros_disponibles": {},
+                    "filters": {}
+                })
+
+        if snapshot:
             metrics = snapshot.metrics or {}
-
             needs_live_metrics = any(request_filters.values()) or not metrics.get("filtros_disponibles")
-            if needs_live_metrics:
-                job = None
-                if snapshot.job and snapshot.job.status == JobStatus.SUCCEEDED:
-                    job = snapshot.job
-                else:
-                    job = AnalysisJob.objects.filter(
-                        tenant=tenant,
-                        status=JobStatus.SUCCEEDED,
-                        period_month=snapshot.period_month
-                    ).first()
+            if needs_live_metrics and job:
+                live_metrics = self._generate_metrics_from_job(job, request_filters)
+                if live_metrics:
+                    metrics = live_metrics
+        else:
+            metrics = self._generate_metrics_from_job(job, request_filters)
 
-                if job:
-                    live_metrics = self._generate_metrics_from_job(job, request_filters)
-                    if live_metrics:
-                        metrics = live_metrics
+        if not metrics:
+            metrics = {
+                "total_personal_asignado": 0,
+                "total_servicio_vivo": 0,
+                "coincidencias": 0,
+                "diferencia_total": 0,
+                "cobertura_porcentaje": 0,
+                "cobertura_diferencial": 0,
+                "total_servicios": 0,
+                "by_estado": [],
+                "by_zona": [],
+                "by_macrozona": [],
+                "by_cliente_top10": [],
+                "by_unidad_top10": [],
+                "by_servicio_top10": [],
+                "by_grupo": [],
+                "filtros_disponibles": {},
+            }
+
+        resolved_period = period
+        if not resolved_period:
+            if job and job.period_month:
+                resolved_period = job.period_month.strftime("%Y-%m")
+            elif snapshot and snapshot.period_month:
+                resolved_period = snapshot.period_month.strftime("%Y-%m")
+            elif job:
+                resolved_period = job.created_at.strftime("%Y-%m")
+            else:
+                resolved_period = "N/A"
+
+        resolved_job_id = None
+        if job:
+            resolved_job_id = str(job.id)
+        elif snapshot and snapshot.job_id:
+            resolved_job_id = str(snapshot.job_id)
         
         return JsonResponse({
-            "period": period or (snapshot.period_month.strftime("%Y-%m") if snapshot else "N/A"),
+            "period": resolved_period,
+            "job_id": resolved_job_id,
+            "job_status": job.status if job else JobStatus.SUCCEEDED,
             "kpis": {
                 "total_personal_asignado": metrics.get("total_personal_asignado", 0),
                 "total_servicio_vivo": metrics.get("total_servicio_vivo", 0),
@@ -660,37 +776,67 @@ class PeriodsAPIView(LoginRequiredJSONMixin, View):
         
         if not tenant:
             return JsonResponse({"error": "Tenant no encontrado"}, status=404)
-        
-        # Obtener periodos de snapshots
-        snapshots = AnalysisSnapshot.objects.filter(tenant=tenant).order_by("-period_month")
-        
-        # Si no hay snapshots, obtener de jobs exitosos
-        if not snapshots.exists():
-            jobs = AnalysisJob.objects.filter(
-                tenant=tenant,
-                status=JobStatus.SUCCEEDED
-            ).order_by("-created_at")
-            
-            periods = []
-            seen = set()
-            for job in jobs:
-                period_str = job.period_month.strftime("%Y-%m") if job.period_month else job.created_at.strftime("%Y-%m")
-                if period_str not in seen:
-                    seen.add(period_str)
-                    periods.append({
-                        "value": period_str,
-                        "label": format_period_spanish(job.period_month) if job.period_month else format_period_spanish(job.created_at),
-                        "job_id": str(job.id)
-                    })
-        else:
+
+        jobs = AnalysisJob.objects.filter(tenant=tenant).order_by("-created_at")
+
+        periods = []
+        period_map = {}
+
+        for job in jobs:
+            period_date = job.period_month or job.created_at.date()
+            period_value = period_date.strftime("%Y-%m")
+
+            if period_value not in period_map:
+                period_entry = {
+                    "value": period_value,
+                    "label": format_period_spanish(period_date),
+                    "job_id": None,
+                    "jobs": [],
+                }
+                period_map[period_value] = period_entry
+                periods.append(period_entry)
+
+            local_created = timezone.localtime(job.created_at).strftime("%d/%m/%Y %H:%M")
+            status_label = job.get_status_display()
+            job_entry = {
+                "id": str(job.id),
+                "status": job.status,
+                "status_label": status_label,
+                "created_at": job.created_at.isoformat(),
+                "can_export": job.status == JobStatus.SUCCEEDED,
+                "label": f"{local_created} - {status_label}",
+            }
+
+            period_entry = period_map[period_value]
+            period_entry["jobs"].append(job_entry)
+
+            if period_entry["job_id"] is None and job.status == JobStatus.SUCCEEDED:
+                period_entry["job_id"] = str(job.id)
+
+        if not periods:
+            snapshots = AnalysisSnapshot.objects.filter(tenant=tenant).order_by("-period_month")
             periods = [
                 {
                     "value": s.period_month.strftime("%Y-%m"),
                     "label": format_period_spanish(s.period_month),
-                    "job_id": str(s.job_id)
+                    "job_id": str(s.job_id),
+                    "jobs": [
+                        {
+                            "id": str(s.job_id),
+                            "status": JobStatus.SUCCEEDED,
+                            "status_label": "Succeeded",
+                            "created_at": s.created_at.isoformat(),
+                            "can_export": True,
+                            "label": f"Snapshot {s.period_month.strftime('%Y-%m')}",
+                        }
+                    ],
                 }
                 for s in snapshots
             ]
+
+        for period_entry in periods:
+            if period_entry["job_id"] is None and period_entry["jobs"]:
+                period_entry["job_id"] = period_entry["jobs"][0]["id"]
         
         return JsonResponse({"periods": periods})
 
@@ -774,6 +920,7 @@ class DetailsAPIView(LoginRequiredJSONMixin, View):
     def get(self, request):
         tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")
+        job_id = request.GET.get("job_id")
         
         # Validar paginación
         page, per_page, err = validate_pagination(request)
@@ -794,14 +941,15 @@ class DetailsAPIView(LoginRequiredJSONMixin, View):
         
         if not tenant:
             return JsonResponse({"error": {"code": "not_found", "message": "Tenant no encontrado"}}, status=404)
-        
-        filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
-        if period:
-            from datetime import datetime
-            period_date = datetime.strptime(f"{period}-01", "%Y-%m-%d").date()
-            filters["period_month"] = period_date
-        
-        job = AnalysisJob.objects.filter(**filters).order_by("-created_at").first()
+
+        job, job_err = resolve_analysis_job(
+            tenant,
+            job_id=job_id,
+            period_date=period_date if period else None,
+            require_succeeded=True
+        )
+        if job_err:
+            return job_err
         
         if not job:
             return JsonResponse({
@@ -929,6 +1077,7 @@ class ClientsAPIView(LoginRequiredJSONMixin, View):
     def get(self, request):
         tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")
+        job_id = request.GET.get("job_id")
         
         # Validar paginación
         page, per_page, err = validate_pagination(request)
@@ -949,14 +1098,15 @@ class ClientsAPIView(LoginRequiredJSONMixin, View):
         
         if not tenant:
             return JsonResponse({"error": {"code": "not_found", "message": "Tenant no encontrado"}}, status=404)
-        
-        filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
-        if period:
-            from datetime import datetime
-            period_date = datetime.strptime(f"{period}-01", "%Y-%m-%d").date()
-            filters["period_month"] = period_date
-        
-        job = AnalysisJob.objects.filter(**filters).order_by("-created_at").first()
+
+        job, job_err = resolve_analysis_job(
+            tenant,
+            job_id=job_id,
+            period_date=period_date if period else None,
+            require_succeeded=True
+        )
+        if job_err:
+            return job_err
         
         if not job:
             return JsonResponse({
@@ -1105,6 +1255,7 @@ class UnitsAPIView(LoginRequiredJSONMixin, View):
     def get(self, request):
         tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")
+        job_id = request.GET.get("job_id")
         
         # Validar paginación
         page, per_page, err = validate_pagination(request)
@@ -1125,14 +1276,15 @@ class UnitsAPIView(LoginRequiredJSONMixin, View):
         
         if not tenant:
             return JsonResponse({"error": {"code": "not_found", "message": "Tenant no encontrado"}}, status=404)
-        
-        filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
-        if period:
-            from datetime import datetime
-            period_date = datetime.strptime(f"{period}-01", "%Y-%m-%d").date()
-            filters["period_month"] = period_date
-        
-        job = AnalysisJob.objects.filter(**filters).order_by("-created_at").first()
+
+        job, job_err = resolve_analysis_job(
+            tenant,
+            job_id=job_id,
+            period_date=period_date if period else None,
+            require_succeeded=True
+        )
+        if job_err:
+            return job_err
         
         if not job:
             return JsonResponse({
@@ -1275,6 +1427,7 @@ class ServicesAPIView(LoginRequiredJSONMixin, View):
     def get(self, request):
         tenant = get_tenant_for_user(request.user, request)
         period = request.GET.get("period")
+        job_id = request.GET.get("job_id")
         
         # Validar paginación
         page, per_page, err = validate_pagination(request)
@@ -1295,14 +1448,15 @@ class ServicesAPIView(LoginRequiredJSONMixin, View):
         
         if not tenant:
             return JsonResponse({"error": {"code": "not_found", "message": "Tenant no encontrado"}}, status=404)
-        
-        filters = {"tenant": tenant, "status": JobStatus.SUCCEEDED}
-        if period:
-            from datetime import datetime
-            period_date = datetime.strptime(f"{period}-01", "%Y-%m-%d").date()
-            filters["period_month"] = period_date
-        
-        job = AnalysisJob.objects.filter(**filters).order_by("-created_at").first()
+
+        job, job_err = resolve_analysis_job(
+            tenant,
+            job_id=job_id,
+            period_date=period_date if period else None,
+            require_succeeded=True
+        )
+        if job_err:
+            return job_err
         
         if not job:
             return JsonResponse({

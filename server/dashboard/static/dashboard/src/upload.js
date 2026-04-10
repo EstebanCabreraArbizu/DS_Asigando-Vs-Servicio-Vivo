@@ -32,6 +32,54 @@ function withCSRFHeaders(extraHeaders = {}) {
     };
 }
 
+async function readApiResponse(response) {
+    const contentType = response.headers.get('content-type') || '';
+    const isJson = contentType.includes('application/json');
+
+    if (isJson) {
+        try {
+            return { isJson, body: await response.json() };
+        } catch {
+            return { isJson, body: null };
+        }
+    }
+
+    try {
+        const text = await response.text();
+        return { isJson, body: text ? { text } : null };
+    } catch {
+        return { isJson, body: null };
+    }
+}
+
+function getApiErrorMessage(response, body, fallbackMessage) {
+    if (body && typeof body === 'object') {
+        if (body.error && typeof body.error.message === 'string') {
+            return body.error.message;
+        }
+        if (typeof body.detail === 'string') {
+            return body.detail;
+        }
+        if (typeof body.message === 'string') {
+            return body.message;
+        }
+        if (typeof body.text === 'string') {
+            const raw = body.text.trim().toLowerCase();
+            if (raw.startsWith('<!doctype') || raw.startsWith('<html')) {
+                return 'La sesión expiró o la API devolvió HTML. Vuelve a iniciar sesión e inténtalo otra vez.';
+            }
+        }
+    }
+
+    if (response.status === 401 || response.status === 403) {
+        return 'Tu sesión expiró o no tienes permisos. Vuelve a iniciar sesión.';
+    }
+    if (response.status >= 500) {
+        return 'Error interno del servidor. Intenta nuevamente en unos minutos.';
+    }
+    return fallbackMessage;
+}
+
 // Estado
 let filePA = null;
 let fileSV = null;
@@ -189,14 +237,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: withCSRFHeaders(),
                     credentials: 'same-origin'
                 });
+                const { isJson, body } = await readApiResponse(response);
 
                 if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.detail || error.message || 'Error al crear el job');
+                    throw new Error(getApiErrorMessage(response, body, 'Error al crear el job'));
+                }
+                if (!isJson || !body || typeof body.job_id !== 'string') {
+                    throw new Error('Respuesta inválida del servidor al crear el análisis.');
                 }
 
-                const data = await response.json();
-                currentJobId = data.job_id;
+                currentJobId = body.job_id;
 
                 updateProgress(30, 'Archivos subidos. Procesando análisis...');
 
@@ -218,7 +268,14 @@ function pollJobStatus() {
             const response = await fetch(`${apiRoot}api/v1/jobs/${currentJobId}/status/`, {
                 credentials: 'same-origin'
             });
-            const data = await response.json();
+            const { isJson, body } = await readApiResponse(response);
+            if (!response.ok) {
+                throw new Error(getApiErrorMessage(response, body, 'Error al verificar estado'));
+            }
+            if (!isJson || !body || typeof body.status !== 'string') {
+                throw new Error('Respuesta inválida al consultar estado del análisis.');
+            }
+            const data = body;
 
             if (data.status === 'succeeded') {
                 clearInterval(pollInterval);
@@ -326,10 +383,10 @@ async function confirmDelete() {
             headers: withCSRFHeaders(),
             credentials: 'same-origin'
         });
+        const { body } = await readApiResponse(response);
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Error al eliminar');
+            throw new Error(getApiErrorMessage(response, body, 'Error al eliminar'));
         }
 
         // Eliminar fila de la tabla
@@ -352,7 +409,10 @@ async function refreshJobsList() {
         const response = await fetch(`${apiRoot}api/v1/jobs/?limit=10`, {
             credentials: 'same-origin'
         });
-        const data = await response.json();
+        const { body } = await readApiResponse(response);
+        if (!response.ok) {
+            throw new Error(getApiErrorMessage(response, body, 'No se pudo refrescar la lista de análisis'));
+        }
 
         // Recargar página para simplicidad (se puede optimizar con renderizado dinámico)
         window.location.reload();
