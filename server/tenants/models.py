@@ -93,6 +93,7 @@ class Membership(models.Model):
         return self.role in [
             MembershipRole.OWNER,
             MembershipRole.ADMIN,
+            MembershipRole.COORDINATOR,
         ]
     
     def can_export_data(self) -> bool:

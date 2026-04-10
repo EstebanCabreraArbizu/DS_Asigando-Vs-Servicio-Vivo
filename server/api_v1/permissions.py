@@ -153,10 +153,14 @@ class CanDeleteFiles(HasTenantRole):
     """
     Permiso específico para eliminación de archivos.
     Más restrictivo que CanManageFiles.
-    Solo OWNER y ADMIN pueden eliminar.
+    OWNER, ADMIN y COORDINATOR pueden eliminar.
     """
-    allowed_roles = [MembershipRole.OWNER, MembershipRole.ADMIN]
-    message = "Solo administradores pueden eliminar archivos."
+    allowed_roles = [
+        MembershipRole.OWNER,
+        MembershipRole.ADMIN,
+        MembershipRole.COORDINATOR,
+    ]
+    message = "No tienes permiso para eliminar archivos."
 
 
 class CanViewAnalysis(HasTenantRole):
