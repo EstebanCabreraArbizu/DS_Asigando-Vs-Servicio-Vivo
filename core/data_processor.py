@@ -143,7 +143,14 @@ class DataProcessor:
         try:
             if filter_value is not None:
                 self.logger.debug(f"Filtering by {estado_col} = '{filter_value}'")
-                df = df.filter(pl.col(estado_col) == filter_value)
+                normalized_value = str(filter_value).strip().upper()
+                df = df.filter(
+                    pl.col(estado_col)
+                    .cast(pl.Utf8)
+                    .str.strip_chars()
+                    .str.to_uppercase()
+                    == normalized_value
+                )
                 self.logger.info(f"Filtered to {len(df)} rows where {estado_col} = '{filter_value}'")
             else:
                 self.logger.debug("No estado filtering applied")
@@ -354,9 +361,15 @@ class DataProcessor:
             self.logger.info("Starting processing of Servicio Vivo dataset")
             initial_rows = len(df)
 
-            # Filter by estado if configured
+            # Filter by estado if configured (solo si la columna existe)
             estado_filter = self.parameters.get("estado_filter")
-            df = self._filter_by_estado(df, "Estado", estado_filter)
+            if estado_filter is not None and "Estado" in df.columns:
+                df = self._filter_by_estado(df, "Estado", estado_filter)
+            elif estado_filter is not None and "Estado" not in df.columns:
+                self.logger.warning(
+                    "Columna 'Estado' no encontrada en Servicio Vivo. "
+                    "Se omite el filtro y se procesan todos los registros."
+                )
 
             # Clean string columns
             string_columns = ["Estado", "Cliente", "Unidad", "Servicio", "Nombre Servicio", "Grupo",

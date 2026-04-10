@@ -143,12 +143,12 @@ class JobCreateView(APIView):
         sv_file = serializer.validated_data["input_servicio_vivo"]
         
         # Validar extensiones permitidas
-        allowed_extensions = [".xlsx", ".xls", ".csv"]
+        allowed_extensions = [".xlsx", ".xls"]
         for f in [pa_file, sv_file]:
             ext = f.name.lower().split(".")[-1] if "." in f.name else ""
             if f".{ext}" not in allowed_extensions:
                 return ErrorResponse.bad_request(
-                    f"Tipo de archivo no permitido: {f.name}. Use: {', '.join(allowed_extensions)}",
+                    f"Tipo de archivo no permitido: {f.name}. Solo se aceptan archivos Excel ({', '.join(allowed_extensions)}).",
                     code="invalid_file_type"
                 )
 

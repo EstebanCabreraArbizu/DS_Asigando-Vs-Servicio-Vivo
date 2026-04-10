@@ -25,7 +25,6 @@ logger = logging.getLogger("security")
 
 # Tipos de archivo permitidos para el sistema PA vs SV
 ALLOWED_EXTENSIONS = {
-    ".csv": "text/csv",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".xls": "application/vnd.ms-excel",
 }

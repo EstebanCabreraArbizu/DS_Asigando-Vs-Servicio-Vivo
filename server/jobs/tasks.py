@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import io
+import logging
 import os
 import tempfile
+import unicodedata
 from pathlib import Path
 
 import polars as pl
@@ -17,6 +19,49 @@ from core.data_processor import DataProcessor
 from core.analysis_engine import AnalysisEngine
 from core.excel_exporter import ExcelExporter
 from core.config import SHEET_NAMES, HEADER_ROWS, EXCEL_SCHEMAS
+
+
+logger = logging.getLogger(__name__)
+
+
+SERVICIO_VIVO_HEADER_ALIASES = {
+    "Q° PER. FACTOR - REQUERIDO": [
+        "Q° PER FACTOR REQUERIDO",
+        "Q° PER. FACTOR REQUERIDO",
+        "Q PER FACTOR REQUERIDO",
+    ],
+    "TIPO DE PLANILLA": [
+        "Compañía",
+        "COMPAÑIA",
+        "COMPANIA",
+        "TIPO PLANILLA",
+        "TIPO_DE_PLANILLA",
+    ],
+    "ZONA": ["Zona", "zona"],
+    "LÍDER ZONAL": ["LIDER ZONAL", "LÍDERZONAL", "LIDERZONAL", "Lider Zonal"],
+    "GERENTE": ["GERENCIA", "Gerencia"],
+    "JEFE": ["JEFATURA", "Jefatura"],
+    "MACROZONA": ["Macrozona", "macrozona"],
+}
+
+SERVICIO_VIVO_REQUIRED_COLUMNS = [
+    "Cliente",
+    "Unidad",
+    "Servicio",
+    "Grupo",
+    "Q° PER. FACTOR - REQUERIDO",
+    "TIPO DE PLANILLA",
+    "Nombre Cliente",
+    "Nombre Unidad",
+    "Nombre Servicio",
+    "Nombre Grupo",
+    "ZONA",
+    "MACROZONA",
+    "LÍDER ZONAL",
+    "JEFE",
+    "GERENTE",
+    "SECTOR",
+]
 
 
 def _make_unique_columns(header_values):
@@ -40,7 +85,137 @@ def _make_unique_columns(header_values):
     return result
 
 
-def _read_excel_bytes_to_df(content: bytes, sheet_name: str, header_row: int, schema: dict) -> pl.DataFrame:
+def _normalize_header_name(name: str) -> str:
+    """Normaliza nombres de columnas para matching tolerante."""
+    normalized = unicodedata.normalize("NFKD", str(name).strip()).encode("ascii", "ignore").decode("ascii")
+    normalized = normalized.replace("_", " ").replace("-", " ").replace(".", " ")
+    normalized = " ".join(normalized.upper().split())
+    return normalized
+
+
+def _apply_column_aliases(df: pl.DataFrame, aliases: dict[str, list[str]] | None) -> pl.DataFrame:
+    """Renombra columnas usando un mapa de alias tolerante a mayúsculas/espacios/acentos."""
+    if not aliases:
+        return df
+
+    normalized_to_actual = {
+        _normalize_header_name(column): column
+        for column in df.columns
+    }
+
+    rename_map = {}
+    for canonical_name, alias_list in aliases.items():
+        if canonical_name in df.columns:
+            continue
+
+        candidates = [canonical_name, *alias_list]
+        for candidate in candidates:
+            matched_column = normalized_to_actual.get(_normalize_header_name(candidate))
+            if matched_column and matched_column != canonical_name:
+                rename_map[matched_column] = canonical_name
+                break
+
+    if rename_map:
+        df = df.rename(rename_map)
+
+    return df
+
+
+def _validate_required_columns(df: pl.DataFrame, required_columns: list[str] | None) -> None:
+    """Valida presencia de columnas obligatorias y falla temprano con mensaje claro."""
+    if not required_columns:
+        return
+
+    missing_columns = [column for column in required_columns if column not in df.columns]
+    if missing_columns:
+        raise ValueError(
+            "Faltan columnas obligatorias: "
+            + ", ".join(missing_columns)
+            + ". Columnas detectadas: "
+            + ", ".join(df.columns)
+        )
+
+
+def _detect_header_row(
+    df: pl.DataFrame,
+    required_columns: list[str],
+    aliases: dict[str, list[str]] | None,
+    max_scan_rows: int = 15,
+) -> int:
+    """Detecta automáticamente la fila de cabeceras comparando matches contra columnas requeridas."""
+    if df.height == 0:
+        raise ValueError("El archivo está vacío; no se puede detectar la fila de cabeceras.")
+
+    alias_map = {}
+    for canonical in required_columns:
+        candidates = [canonical]
+        if aliases and canonical in aliases:
+            candidates.extend(aliases[canonical])
+        alias_map[canonical] = {_normalize_header_name(candidate) for candidate in candidates}
+
+    rows_to_scan = min(max_scan_rows, df.height)
+    best_row_index = -1
+    best_score = -1
+    best_matched_names: list[str] = []
+    scan_summary: list[str] = []
+
+    for row_index in range(rows_to_scan):
+        row_values = df.row(row_index)
+        normalized_row = {
+            _normalize_header_name(value)
+            for value in row_values
+            if str(value).strip() and str(value).strip().lower() != "none"
+        }
+
+        matched_names = [
+            canonical
+            for canonical in required_columns
+            if normalized_row.intersection(alias_map[canonical])
+        ]
+        score = len(matched_names)
+        scan_summary.append(f"fila {row_index}: {score}/{len(required_columns)}")
+
+        if score > best_score:
+            best_score = score
+            best_row_index = row_index
+            best_matched_names = matched_names
+
+    minimum_matches = max(5, min(len(required_columns), int(len(required_columns) * 0.4)))
+    if best_score < minimum_matches:
+        logger.error(
+            "No se pudo detectar header row automáticamente (mejor fila=%s, score=%s/%s, mínimo=%s). Escaneo: %s",
+            best_row_index,
+            best_score,
+            len(required_columns),
+            minimum_matches,
+            " | ".join(scan_summary),
+        )
+        raise ValueError(
+            "No se pudo detectar la fila de cabeceras automáticamente. "
+            f"Mejor coincidencia: fila {best_row_index} con {best_score} columnas; "
+            f"mínimo requerido: {minimum_matches}."
+        )
+
+    logger.info(
+        "Header row detectado automáticamente en fila %s (%s/%s). Coincidencias: %s",
+        best_row_index,
+        best_score,
+        len(required_columns),
+        ", ".join(best_matched_names) if best_matched_names else "sin coincidencias",
+    )
+
+    return best_row_index
+
+
+def _read_excel_bytes_to_df(
+    content: bytes,
+    sheet_name: str,
+    header_row: int,
+    schema: dict,
+    header_aliases: dict[str, list[str]] | None = None,
+    required_columns: list[str] | None = None,
+    auto_detect_header: bool = False,
+) -> pl.DataFrame:
     """Lee un Excel desde bytes, saltando las filas de encabezado indicadas."""
     tmp_fd, tmp_path = tempfile.mkstemp(suffix=".xlsx")
     try:
@@ -55,15 +230,29 @@ def _read_excel_bytes_to_df(content: bytes, sheet_name: str, header_row: int, sc
             has_header=False,
             infer_schema_length=10000,
         )
+
+        resolved_header_row = header_row
+        if auto_detect_header and required_columns:
+            resolved_header_row = _detect_header_row(
+                df,
+                required_columns=required_columns,
+                aliases=header_aliases,
+            )
+
+        if resolved_header_row < 0 or resolved_header_row >= df.height:
+            raise ValueError(
+                f"Fila de cabecera inválida ({resolved_header_row}) para hoja '{sheet_name}'. "
+                f"Total de filas detectadas: {df.height}."
+            )
         
-        if header_row > 0:
-            # La fila header_row contiene los nombres de columnas reales
+        if resolved_header_row > 0:
+            # La fila resolved_header_row contiene los nombres de columnas reales
             # Extraer nombres de columna de esa fila
-            header_values = df.row(header_row)
+            header_values = df.row(resolved_header_row)
             new_columns = _make_unique_columns(header_values)
             
             # Renombrar columnas y saltar filas hasta los datos
-            df = df.slice(header_row + 1)  # Datos comienzan después del encabezado
+            df = df.slice(resolved_header_row + 1)  # Datos comienzan después del encabezado
             df.columns = new_columns
         else:
             # Primera fila es el encabezado, ya está bien
@@ -71,6 +260,10 @@ def _read_excel_bytes_to_df(content: bytes, sheet_name: str, header_row: int, sc
             new_columns = _make_unique_columns(header_values)
             df = df.slice(1)
             df.columns = new_columns
+
+        # Resolver alias y validar columnas críticas antes de procesar
+        df = _apply_column_aliases(df, header_aliases)
+        _validate_required_columns(df, required_columns)
         
         # Aplicar schema si se especificó
         if schema:
@@ -154,6 +347,9 @@ def run_analysis_job(self, job_id: str) -> None:
             SHEET_NAMES["servicio_vivo"],
             HEADER_ROWS["servicio_vivo"],
             EXCEL_SCHEMAS["servicio_vivo"],
+            header_aliases=SERVICIO_VIVO_HEADER_ALIASES,
+            required_columns=SERVICIO_VIVO_REQUIRED_COLUMNS,
+            auto_detect_header=True,
         )
 
         processor = DataProcessor()

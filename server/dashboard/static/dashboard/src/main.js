@@ -164,7 +164,9 @@ function setupTabs() {
 async function loadPeriods() {
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const response = await fetch(`${apiPrefix}api/periods/?tenant=default`);
+        const response = await fetch(`${apiPrefix}api/periods/`, {
+            credentials: 'same-origin'
+        });
         const data = await response.json();
         const select = document.getElementById('period-select');
         const select1 = document.getElementById('compare-period1');
@@ -199,7 +201,6 @@ async function loadMetrics(period) {
     try {
         // Construir URL con filtros
         const params = new URLSearchParams({
-            tenant: 'default',
             period: period
         });
 
@@ -219,7 +220,9 @@ async function loadMetrics(period) {
         if (gerente) params.append('gerente', gerente);
 
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const response = await fetch(`${apiPrefix}api/metrics/?${params.toString()}`);
+        const response = await fetch(`${apiPrefix}api/metrics/?${params.toString()}`, {
+            credentials: 'same-origin'
+        });
         metricsData = await response.json();
 
         if (metricsData.error) {
@@ -643,8 +646,10 @@ async function loadClientData() {
     const search = document.getElementById('search-cliente')?.value || '';
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const url = await buildApiUrl(`${apiPrefix}api/clients/?tenant=default&period=${currentPeriod}&page=${clientPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
-        const response = await fetch(url);
+        const url = await buildApiUrl(`${apiPrefix}api/clients/?period=${currentPeriod}&page=${clientPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
+        const response = await fetch(url, {
+            credentials: 'same-origin'
+        });
         const data = await response.json();
 
         renderClientTable(data);
@@ -723,8 +728,10 @@ async function loadUnitData() {
     const search = document.getElementById('search-unidad')?.value || '';
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const url = await buildApiUrl(`${apiPrefix}api/units/?tenant=default&period=${currentPeriod}&page=${unitPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
-        const response = await fetch(url);
+        const url = await buildApiUrl(`${apiPrefix}api/units/?period=${currentPeriod}&page=${unitPage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
+        const response = await fetch(url, {
+            credentials: 'same-origin'
+        });
         const data = await response.json();
 
         renderUnitTable(data);
@@ -802,8 +809,10 @@ async function loadServiceData() {
     const search = document.getElementById('search-servicio')?.value || '';
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const url = await buildApiUrl(`${apiPrefix}api/services/?tenant=default&period=${currentPeriod}&page=${servicePage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
-        const response = await fetch(url);
+        const url = await buildApiUrl(`${apiPrefix}api/services/?period=${currentPeriod}&page=${servicePage}&per_page=${perPage}&search=${encodeURIComponent(search)}`);
+        const response = await fetch(url, {
+            credentials: 'same-origin'
+        });
         const data = await response.json();
 
         renderServiceTable(data);
@@ -1055,8 +1064,10 @@ async function loadTableData() {
     const search = document.getElementById('search-input').value;
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const url = await buildApiUrl(`${apiPrefix}api/details/?tenant=default&period=${currentPeriod}&page=${currentPage}&per_page=25&search=${encodeURIComponent(search)}&sort_by=${sortBy}&sort_order=${sortOrder}`);
-        const response = await fetch(url);
+        const url = await buildApiUrl(`${apiPrefix}api/details/?period=${currentPeriod}&page=${currentPage}&per_page=25&search=${encodeURIComponent(search)}&sort_by=${sortBy}&sort_order=${sortOrder}`);
+        const response = await fetch(url, {
+            credentials: 'same-origin'
+        });
         const data = await response.json();
 
         renderDetailTable(data);
@@ -1192,7 +1203,7 @@ function setupEventListeners() {
     document.getElementById('run-compare').addEventListener('click', runComparison);
 
     // Exportar
-    document.getElementById('export-btn').addEventListener('click', () => window.open('/api/v1/jobs/latest/download/?tenant=default', '_blank'));
+    document.getElementById('export-btn').addEventListener('click', () => window.open('/api/v1/jobs/latest/download/', '_blank'));
 
     // Limpiar filtros
     document.getElementById('clear-filters').addEventListener('click', () => {
@@ -1252,7 +1263,9 @@ async function runComparison() {
 
     try {
         const apiPrefix = document.body.dataset.apiRoot || '/dashboard/'
-        const response = await fetch(`${apiPrefix}api/compare/?tenant=default&period1=${currentPeriod}&period2=${p2}`);
+        const response = await fetch(`${apiPrefix}api/compare/?period1=${currentPeriod}&period2=${p2}`, {
+            credentials: 'same-origin'
+        });
         const data = await response.json();
 
         if (data.error) { alert(data.error); return; }

@@ -46,25 +46,22 @@ EXCEL_SCHEMAS: Dict[str, Dict[str, Any]] = {
         "DEPARTAMENTO": pl.String
     },
     "servicio_vivo": {
-        "Estado": pl.String,
         "Cliente": pl.String,
         "Unidad": pl.String,
         "Servicio": pl.String,
         "Nombre Servicio": pl.String,
         "Grupo": pl.String,
-        "HRS": pl.Float64,
         "Q° PER. FACTOR - REQUERIDO": pl.Float64,
-        "Compañía": pl.String,
+        "TIPO DE PLANILLA": pl.String,
         "Nombre Cliente": pl.String,
         "Nombre Unidad": pl.String,
         "ZONA": pl.String,
         "MACROZONA": pl.String,
         "Nombre Grupo": pl.String,
-        "LÍDERZONAL": pl.String,
-        #"JEFATURA": pl.String,
+        "LÍDER ZONAL": pl.String,
         "GERENTE": pl.String,
         "JEFE": pl.String,
-        #"Descripcion Departamento": pl.String
+        "SECTOR": pl.String,
     }
 }
 

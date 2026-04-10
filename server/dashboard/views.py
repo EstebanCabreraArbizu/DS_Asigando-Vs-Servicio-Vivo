@@ -249,12 +249,19 @@ def get_tenant_for_user(user, request=None):
     if not user or not user.is_authenticated:
         return None
     
+    def _user_can_access_tenant(tenant_obj):
+        if not tenant_obj:
+            return False
+        if user.is_superuser:
+            return True
+        return Membership.objects.filter(user=user, tenant=tenant_obj).exists()
+
     if request:
         # 1. Query param (usado en links del dashboard)
         tenant_slug = request.GET.get("tenant")
         if tenant_slug:
             tenant = Tenant.objects.filter(slug=tenant_slug).first()
-            if tenant:
+            if _user_can_access_tenant(tenant):
                 return tenant
         
         # 2. Header (usado en llamadas API/AJAX)
@@ -262,9 +269,9 @@ def get_tenant_for_user(user, request=None):
         if tenant_id:
             try:
                 tenant = Tenant.objects.filter(id=tenant_id).first()
-                if tenant:
+                if _user_can_access_tenant(tenant):
                     return tenant
-            except:
+            except Exception:
                 pass
     
     # 3. Default membership
@@ -409,25 +416,31 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
                         "cobertura_porcentaje": 0
                     },
                     "charts": {},
-                    "filtros_disponibles": {}
+                    "filtros_disponibles": {},
+                    "filters": {}
                 })
             
             # Generar métricas desde el parquet del job (aplicar filtros recibidos)
             metrics = self._generate_metrics_from_job(job, request_filters)
         else:
-            # Si hay snapshot pero también filtros, regenerar desde job
-            if any(request_filters.values()):
-                job = AnalysisJob.objects.filter(
-                    tenant=tenant,
-                    status=JobStatus.SUCCEEDED,
-                    period_month=snapshot.period_month
-                ).first()
-                if job:
-                    metrics = self._generate_metrics_from_job(job, request_filters)
+            metrics = snapshot.metrics or {}
+
+            needs_live_metrics = any(request_filters.values()) or not metrics.get("filtros_disponibles")
+            if needs_live_metrics:
+                job = None
+                if snapshot.job and snapshot.job.status == JobStatus.SUCCEEDED:
+                    job = snapshot.job
                 else:
-                    metrics = snapshot.metrics
-            else:
-                metrics = snapshot.metrics
+                    job = AnalysisJob.objects.filter(
+                        tenant=tenant,
+                        status=JobStatus.SUCCEEDED,
+                        period_month=snapshot.period_month
+                    ).first()
+
+                if job:
+                    live_metrics = self._generate_metrics_from_job(job, request_filters)
+                    if live_metrics:
+                        metrics = live_metrics
         
         return JsonResponse({
             "period": period or (snapshot.period_month.strftime("%Y-%m") if snapshot else "N/A"),
@@ -449,7 +462,8 @@ class MetricsAPIView(LoginRequiredJSONMixin, View):
                 "by_servicio_top10": metrics.get("by_servicio_top10", []),
                 "by_grupo": metrics.get("by_grupo", []),
             },
-            "filtros_disponibles": metrics.get("filtros_disponibles", {})
+            "filtros_disponibles": metrics.get("filtros_disponibles", {}),
+            "filters": metrics.get("filtros_disponibles", {})
         })
     
     def _generate_metrics_from_job(self, job, filters=None):

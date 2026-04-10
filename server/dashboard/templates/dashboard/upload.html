@@ -66,7 +66,7 @@
                         Personal Asignado (PA)
                     </label>
                     <div id="dropzone-pa" class="dropzone rounded-xl p-8 text-center cursor-pointer">
-                        <input type="file" id="file-pa" accept=".xlsx,.xls,.csv" class="hidden">
+                        <input type="file" id="file-pa" accept=".xlsx,.xls" class="hidden">
                         <div id="dropzone-pa-content">
                             <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none"
                                 viewBox="0 0 48 48">
@@ -98,7 +98,7 @@
                         Servicio Vivo (SV)
                     </label>
                     <div id="dropzone-sv" class="dropzone rounded-xl p-8 text-center cursor-pointer">
-                        <input type="file" id="file-sv" accept=".xlsx,.xls,.csv" class="hidden">
+                        <input type="file" id="file-sv" accept=".xlsx,.xls" class="hidden">
                         <div id="dropzone-sv-content">
                             <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" stroke="currentColor" fill="none"
                                 viewBox="0 0 48 48">
@@ -308,7 +308,7 @@
             <!-- Quick Download Latest -->
             {% if recent_jobs and permissions.can_export %}
             <div class="mt-4 pt-4 border-t">
-                <a href="{% url 'dashboard:jobs:job_latest_download' %}?tenant=default"
+                <a href="{% url 'dashboard:jobs:job_latest_download' %}"
                     class="inline-flex items-center gap-2 text-blue-600 hover:underline font-medium">
                     Descargar último Excel exitoso
                 </a>
@@ -331,7 +331,68 @@
             </div>
         </div>
     </div>
-    <script src="{% static 'dashboard/upload.js' %}"></script>
+    <script>
+        (function () {
+            function getCookie(name) {
+                if (!document.cookie) {
+                    return null;
+                }
+
+                const cookies = document.cookie.split(';');
+                for (let index = 0; index < cookies.length; index += 1) {
+                    const cookie = cookies[index].trim();
+                    if (cookie.substring(0, name.length + 1) === name + '=') {
+                        return decodeURIComponent(cookie.substring(name.length + 1));
+                    }
+                }
+                return null;
+            }
+
+            function getCSRFToken() {
+                const tokenField = document.querySelector('[name=csrfmiddlewaretoken]');
+                if (tokenField && tokenField.value) {
+                    return tokenField.value;
+                }
+                return getCookie('__Host-csrftoken') || getCookie('csrftoken');
+            }
+
+            function isUnsafeMethod(method) {
+                const normalizedMethod = (method || 'GET').toUpperCase();
+                return !['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(normalizedMethod);
+            }
+
+            const originalFetch = window.fetch;
+            window.fetch = function patchedFetch(input, init = {}) {
+                const requestUrl = typeof input === 'string' ? input : input.url;
+                const requestMethod = init.method || (typeof input !== 'string' ? input.method : 'GET');
+
+                if (!isUnsafeMethod(requestMethod)) {
+                    return originalFetch(input, init);
+                }
+
+                const token = getCSRFToken();
+                if (!token) {
+                    return originalFetch(input, init);
+                }
+
+                const url = new URL(requestUrl, window.location.origin);
+                if (url.origin !== window.location.origin) {
+                    return originalFetch(input, init);
+                }
+
+                const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined));
+                if (!headers.has('X-CSRFToken')) {
+                    headers.set('X-CSRFToken', token);
+                }
+
+                return originalFetch(input, {
+                    ...init,
+                    headers,
+                });
+            };
+        })();
+    </script>
+    <script src="{% static 'dashboard/upload.js' %}?v=20260226-1"></script>
 </body>
 
 </html>

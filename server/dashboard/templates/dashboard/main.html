@@ -40,7 +40,7 @@
                         class="btn btn-sm btn-upload">
                         📤 <span class="btn-label">Subir</span>
                     </a>
-                    <a href="{% url 'dashboard:jobs:job_latest_download' %}?tenant=default"
+                    <a href="{% url 'dashboard:jobs:job_latest_download' %}"
                         class="btn btn-sm btn-export">
                         📥 <span class="btn-label">Excel</span>
                     </a>
@@ -511,7 +511,7 @@
             </div>
         </div>
     </div>
-    <script src="{% static 'dashboard/main.js' %}"></script>
+    <script src="{% static 'dashboard/main.js' %}?v=20260226-1"></script>
 </body>
 
 </html>
