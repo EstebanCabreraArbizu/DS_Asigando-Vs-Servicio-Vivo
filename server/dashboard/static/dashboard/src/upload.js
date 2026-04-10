@@ -21,6 +21,17 @@ function getCookie(name) {
     return cookieValue;
 }
 
+function withCSRFHeaders(extraHeaders = {}) {
+    const csrfToken = getCSRFToken();
+    if (!csrfToken) {
+        return extraHeaders;
+    }
+    return {
+        ...extraHeaders,
+        'X-CSRFToken': csrfToken,
+    };
+}
+
 // Estado
 let filePA = null;
 let fileSV = null;
@@ -175,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const response = await fetch(`${apiRoot}api/v1/jobs/`, {
                     method: 'POST',
                     body: formData,
+                    headers: withCSRFHeaders(),
                     credentials: 'same-origin'
                 });
 
@@ -311,6 +323,7 @@ async function confirmDelete() {
         const apiRoot = document.body.dataset.apiRoot || '/dashboard/';
         const response = await fetch(`${apiRoot}api/v1/jobs/${jobToDelete}/`, {
             method: 'DELETE',
+            headers: withCSRFHeaders(),
             credentials: 'same-origin'
         });
 
